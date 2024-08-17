@@ -25,3 +25,23 @@ namespace std {
 		}
 	};
 }
+
+template <typename IterType>	// Iterator Type
+class Iterable {
+protected:
+
+	IterType begin_iter;
+	IterType end_iter;
+
+public:
+
+	Iterable(const IterType& begin_iterator, const IterType& end_iterator)
+		: begin_iter(begin_iterator), end_iter(end_iterator) {}
+
+	//IterType begin() const { return begin_iter; }
+	//IterType end() const { return end_iter; }
+
+	const IterType& begin() const { return begin_iter; }
+	const IterType& end() const { return end_iter; }
+
+};
