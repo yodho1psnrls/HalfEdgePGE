@@ -14,3 +14,14 @@ inline float fract(const float x) {
 	return x - (x >= 0.0f ? floor(x) : ceil(x));
 	//return x - floor(x);
 }
+
+// template specialization for std::hash to work with std::pair
+namespace std {
+	template<typename T, typename Y> struct std::hash<std::pair<T, Y>> {
+		size_t operator()(const std::pair<T, Y>& p) const {
+			size_t h1 = std::hash<T>()(p.first);
+			size_t h2 = std::hash<Y>()(p.second);
+			return h1 ^ (h2 << 1);
+		}
+	};
+}

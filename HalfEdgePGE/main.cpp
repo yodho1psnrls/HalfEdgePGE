@@ -1,16 +1,20 @@
+#include "HalfEdgeMesh.hpp"
 #include "Mesh.hpp"
 #include "utilities.hpp"
 #include "Vertex.h"
+#include <iostream>
 
 const float PINDIST = 8.0f;	// the range that the mouse will select a vertex
-
+const int INIT_HEDGE_ID = 0;
 
 template <typename V>
 class Example : public olc::PixelGameEngine {
 
 	Mesh<V> mesh;
+	HEMesh<V> he_mesh;
 
 	int selected_vert_id;
+	int hedge_id;
 
 	//@todo: Save the state of the mesh after some operations, so you can undo and outdo
 	//std::vector<Mesh<V>> prevHistory;
@@ -71,13 +75,30 @@ public:
 
 	}
 
+	void print_info(const Mesh<V>& m) const {
+		std::cout << "vertices: " << m.vertices.size() << "\n";
+		std::cout << "triangles: " << m.indices.size() / 3ULL << "\n";
+	}
+
+	void print_info(const HEMesh<V>& hm) const {
+		std::cout << "vertices: " << hm.vertices_size() << "\n";
+		std::cout << "edges: " << hm.edges_size() << "\n";
+		std::cout << "faces: " << hm.faces_size() << "\n";
+		std::cout << "borders: " << hm.borders_size() << "\n";
+	}
+
 
 public:
 	bool OnUserCreate() override {
 		
 		mesh = generate_plane<V>(5, 0.9f);
-		
+		print_info(mesh);
+		he_mesh = mesh;
+		mesh = he_mesh;
+		print_info(mesh);
+
 		selected_vert_id = -1;
+		hedge_id = INIT_HEDGE_ID;
 
 		return true;
 	}
