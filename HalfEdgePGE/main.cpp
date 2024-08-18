@@ -135,20 +135,26 @@ public:
 		olc::vf2d mouse_pos = GetMousePos();
 
 		if (GetMouse(0).bPressed)
-			for (int i = 0; i < mesh.vertices.size(); ++i) {
+			/*for (int i = 0; i < mesh.vertices.size(); ++i) {
 				const V& v = mesh.vertices[i];
 				if ((v.pos - mouse_pos).mag() < PINDIST) {
 					selected_vert_id = i;
 					break;
 				}
-			}
+			}*/
+			for (auto vit = he_mesh.begin_verts(); vit != he_mesh.end_verts(); ++vit)
+				if ((vit->pos - mouse_pos).mag() < PINDIST) {
+					selected_vert_id = vit.index();
+					break;
+				}
 				
 
 		if (GetMouse(0).bReleased)
 			selected_vert_id = -1;
 
 		if (selected_vert_id != -1)
-			mesh.vertices[selected_vert_id].pos = mouse_pos;
+			//mesh.vertices[selected_vert_id].pos = mouse_pos;
+			he_mesh.vert(selected_vert_id)->pos = mouse_pos;
 
 	}
 

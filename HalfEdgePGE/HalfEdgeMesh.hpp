@@ -98,6 +98,15 @@ protected:
 	//bool _are_verts_shrinked;
 	//bool _are_hedges_shrinked;
 
+	bool is_in_range_vert(const int& vert_id) const;
+	bool is_in_range_hedge(const int& hedge_id) const;
+	//bool is_in_range_edge(const int& edge_id) const;
+
+	void chech_vert_id(const int& vert_id) const;
+	void check_hedge_id(const int& hedge_id) const;
+	//void check_edge_id(const int& edge_id) const;
+
+
 	friend class vert_iter;
 	friend class hedge_iter;
 	friend class edge_iter;
@@ -153,16 +162,17 @@ public:
 	int id_begin(const int& vert_id1, const int& vert_id2) const; // gives the begin half edge of the common face between the two vertices, returns HE_INVALID_INDEX if not found
 	const int& id_hedge(const int& vert_id) const;
 	int id_hedge(const int& tail_id, const int& head_id) const;	// gives the id of the half edge with the given tail and head vertices, returns HE_ISOLATED_INDEX if not found
-	const int& id_edge(const int& hedge_id) const;
+	//int id_edge(const int& hedge_id) const;
 
 	bool is_removed_vert(const int& vert_id) const;
 	bool is_removed_hedge(const int& hedge_id) const;
-	bool is_removed_edge(const int& edge_id) const;
+	//bool is_removed_edge(const int& edge_id) const;
 	bool is_begin_hedge(const int& hedge_id) const;	// is the given half edge the beginning of a face or border loop
 
 	bool is_border_hedge(const int& hedge_id) const;
 	bool is_border_edge(const int& hedge_id) const;
 	bool is_border_vert(const int& vert_id) const;
+	bool is_border_loop(const int& begin_id) const;
 	bool is_n_poly(const int& hedge_id, const int& n) const;	// gives the size of the face or border loop of the given half edge // its cheaper to use this instead of get_n_poly(hedge_id) == n
 
 	int get_n_poly(const int& hedge_id) const;	// gives the size of the face or border loop that the half edge is in
@@ -186,7 +196,9 @@ public:
 	bool do_share_loop(const int& hedge_id1, const int& hedge_id2) const;
 	//void shift_begin(const int& begin_id, const int& how_much = 1);
 
-	
+
+
+	void swap_next(const int& hedge_id1, const int& hedge_id2); // swaps the next inedexes of the two hedges and rearanges the face or border begin hedge ids properly
 
 	int add_vert(const V& v);
 	int add_edge(const int& tail_id, const V& head);
@@ -200,6 +212,8 @@ public:
 
 	void move_edge(const int& hedge_id, const int& new_next_id);
 	void move_edge(const int& hedge_id, const int& new_prev_id, const int& new_next_id);
+
+
 
 
   // =================================== ITERATOR ========================================= //
@@ -235,9 +249,9 @@ public:
 	Iterable<face_iter> faces() const;
 	Iterable<face_iter> borders() const;
 
-	Iterable<vert_iter> rvertices() const;
-	Iterable<vert_iter> rhedges() const;
-	Iterable<vert_iter> redges() const;
+	//Iterable<vert_iter> rvertices() const;
+	//Iterable<vert_iter> rhedges() const;
+	//Iterable<vert_iter> redges() const;
 
 
 	// Convertion from index to iterators
@@ -245,7 +259,7 @@ public:
 	hedge_iter hedge(const int& hedge_id) const;
 	hedge_iter hedge(const int& tail_id, const int& head_id) const;
 	edge_iter edge(const int& edge_id) const;
-	face_iter face(const int& hedge_id) const;
+//	face_iter face(const int& hedge_id) const;
 
 	// @todo: Hash for the iterators
 
@@ -271,6 +285,11 @@ public:
 		const int& index() const { return id; }
 
 		bool is_removed() const { return hm->is_removed_vert(id); }
+		bool is_border() const { return hm->is_border_vert(id); }
+		bool is_isolated() const { return hm->is_isolated_vert(id); }
+		bool is_extremal() const { return hm->is_extremal_vert(id); }
+		//bool degree() const { return hm->get_valence(id); }
+		int valence() const { return hm->get_valence(id); }
 
 		V& operator*() { return hm->_vertices[id]; }
 		V* operator->() { return &(hm->_vertices[id]); }
@@ -290,8 +309,6 @@ public:
 	};
 
 
-	// Half Edge Forward Read-Only Iterator
-	// ++ Iterates all the half edges, but you can iterate any other this using this iterator
 	class hedge_iter {
 	protected:
 
@@ -318,7 +335,8 @@ public:
 		const int& index() const { return id; }
 
 		bool is_removed() const { return hm->is_removed_hedge(id); }
-
+		bool is_border() const { return hm->is_border_hedge(id); }
+		bool is_isolated() const { return hm->is_isolated_edge(id); } // true if it is adjacent only to its twin half edge and no other half edges
 
 		hedge_iter next() const { return hedge_iter(hm->_hedges[id].next_id, hm); }
 		hedge_iter twin() const { return hedge_iter(hm->id_twin(id), hm); }
@@ -328,6 +346,7 @@ public:
 		vert_iter head() const { return vert_iter(hm->_hedges[id].head_id, hm); }
 		vert_iter tail() const { return vert_iter(hm->_hedges[hm->id_twin(id)].head_id, hm); }
 		face_iter face() const { return face_iter(id, hm); }
+
 
 		hedge_iter& operator*() { return *this; }
 		hedge_iter* operator->() { return this; }
@@ -345,42 +364,48 @@ public:
 	};
 
 
-	// Forward Read-Only Iterator
 	class edge_iter {
 	protected:
 
 		HEMesh<V>* hm;
-		int id;
+		int hedge_id;
 
 		friend class HEMesh<V>;
 		friend class HEMesh<V>::hedge_iter;
 
-		edge_iter(const int& edge_id, HEMesh<V>* const& hmm) : id(edge_id), hm(hmm) {}
+		edge_iter(const int& edge_id, HEMesh<V>* const& hmm) : hedge_id(edge_id << 1), hm(hmm) {}
 
 	public:
 
 		edge_iter() : id(HE_INVALID_INDEX), hm(nullptr) {}
 
-		operator const int& () const { return id; }
-		operator int() const { return id; }
-		const int& index() const { return id; }
+		//operator const int& () const { return id; }
+		//operator int() const { return id; }
+		const int& index() const { return hedge_id >> 1; }
 
-		//hedge_iter hedge() const { return hedge_iter(2 * id, hm); }
-		//operator hedge_iter() const { return hedge_iter(2 * id, hm); }
-		hedge_iter hedge() const { return hedge_iter(id << 1, hm); }
-		operator hedge_iter() const { return hedge_iter(id << 1, hm); }
+		//hedge_iter hedge() const { return hedge_iter(id << 1, hm); }
+		//operator hedge_iter() const { return hedge_iter(id << 1, hm); }
+		hedge_iter hedge() const { return hedge_iter(hedge_id, hm); }
+		operator hedge_iter() const { return hedge_iter(hedge_id, hm); }
 
 		bool is_removed() const { return hm->is_removed_edge(id); }
+		//bool is_border() const { return hm->is_border_edge(id << 1); }
+		//bool is_isolated() const { return hm->is_isolated_edge(id << 1); }
+		bool is_border() const { return hm->is_border_edge(hedge_id); }
+		bool is_isolated() const { return hm->is_isolated_edge(hedge_id); }
 
 		edge_iter& operator*() { return *this; }
 		edge_iter* operator->() { return this; }
 		const edge_iter& operator*() const { return *this; }
 		const edge_iter* operator->() const { return this; }
 
-		edge_iter& operator++() { do { ++id; } while (id < hm->edges_size() && hm->is_removed_edge(id)); return *this; } // Prefix increment
+		//edge_iter& operator++() { do { ++id; } while (id < hm->edges_size() && hm->is_removed_edge(id)); return *this; } // Prefix increment
+		edge_iter& operator++() { do { hedge_id += 2; } while (id < hm->edges_size() && hm->is_removed_hedge(hedge_id)); return *this; } // Prefix increment
 		edge_iter operator++(int) { edge_iter temp = *this; ++(*this); return temp; } // Postfix increment
-		edge_iter& operator--() { do { --id; } while (id >= 0 && hm->is_removed_edge(id)); return *this; } // Prefix increment
-		edge_iter operator--(int) { edge_iter temp = *this; --(*this); return temp; } // Postfix increment
+		
+		//edge_iter& operator--() { do { --id; } while (id >= 0 && hm->is_removed_edge(id)); return *this; } // Prefix increment
+		edge_iter& operator--() { do { hedge_id -= 2; } while (hedge_id >= 0 && hm->is_removed_hedge(hedge_id)); return *this; } // Prefix decrement
+		edge_iter operator--(int) { edge_iter temp = *this; --(*this); return temp; } // Postfix decrement
 
 		friend bool operator== (const edge_iter& a, const edge_iter& b) { return a.id == b.id; };
 		friend bool operator!= (const edge_iter& a, const edge_iter& b) { return a.id != b.id; };
@@ -415,6 +440,11 @@ public:
 		hedge_iter hedge() const { return hedge_iter(*iter, hm); }
 
 		bool is_valid() const { return hm->is_begin_hedge(*iter); }
+		bool is_border() const { return hm->is_border_loop(*iter); }
+		bool is_isolated() const { return hm->is_isolated_face(*iter); }
+		int size() const { return hm->get_n_poly(*iter); }
+		bool is_size(const int& n) const { return hm->is_n_poly(*iter, n); }
+
 
 		const face_iter& operator*() const { return *this; }
 		const face_iter* operator->() const { return this; }
@@ -433,6 +463,48 @@ public:
 
 
  // ================================== IMPLEMENTATION ======================================== //
+
+
+template<typename V>
+inline bool HEMesh<V>::is_in_range_vert(const int& vert_id) const {
+	return 0 <= vert_id && vert_id < _vertices.size();
+}
+
+template<typename V>
+inline bool HEMesh<V>::is_in_range_hedge(const int& hedge_id) const {
+	return 0 <= hedge_id && hedge_id < _hedges.size();
+}
+
+/*template<typename V>
+inline bool HEMesh<V>::is_in_range_edge(const int& edge_id) const {
+	//int hedge_id = edge_id * 2;
+	int hedge_id = edge_id << 1;
+	return 0 <= hedge_id && hedge_id < _hedges.size());
+}*/
+
+template<typename V>
+inline void HEMesh<V>::chech_vert_id(const int& vert_id) const {
+	if (!is_in_range_vert(vert_id))
+		throw std::out_of_range("Vertex index out of range");
+	if (is_removed_vert(vert_id))
+		throw std::invalid_argument("Removed vertex");
+}
+
+template<typename V>
+inline void HEMesh<V>::check_hedge_id(const int& hedge_id) const {
+	if (!is_in_range_hedge(hedge_id))
+		throw std::out_of_range("Half edge index out of range");
+	if (is_removed_hedge(hedge_id))
+		throw std::invalid_argument("Removed half edge");
+}
+
+/*template<typename V>
+inline void HEMesh<V>::check_edge_id(const int& edge_id) const {
+	if (!is_in_range_edge(edge_id))
+		throw std::out_of_range("Edge index out of range");
+	if (is_removed_edge(edge_id))
+		throw std::invalid_argument("Removed edge");
+}*/
 
 
 template<typename V>
@@ -534,7 +606,8 @@ inline HEMesh<V>::HEMesh(const Mesh<V>& m) {
 			// Find Next Inner Edge
 			e = _hedges[e].next_id;
 			while (e != begin) {
-				if (id_next(id_twin(e)) == HE_INVALID_INDEX)					// !!!!
+				//if (id_next(id_twin(e)) == HE_INVALID_INDEX)					// !!!!
+				if (_hedges[id_twin(e)].next_id == HE_INVALID_INDEX)
 					break;
 
 				e = _hedges[id_twin(e)].next_id;
@@ -740,11 +813,12 @@ inline int HEMesh<V>::id_hedge(const int& tail_id, const int& head_id) const {
 	return HE_ISOLATED_INDEX;
 }
 
-template<typename V>
-inline const int& HEMesh<V>::id_edge(const int& hedge_id) const {
+/*template<typename V>
+inline int HEMesh<V>::id_edge(const int& hedge_id) const {
 	//return hedge_id / 2;
 	return hedge_id >> 1;
-}
+}*/
+
 
 template<typename V>
 inline bool HEMesh<V>::is_removed_vert(const int& vert_id) const {
@@ -756,25 +830,35 @@ inline bool HEMesh<V>::is_removed_hedge(const int& hedge_id) const {
 	return _hedges[hedge_id].next_id == HE_INVALID_INDEX;
 }
 
-template<typename V>
+/*template<typename V>
 inline bool HEMesh<V>::is_removed_edge(const int& edge_id) const {
 	//return is_removed_hedge(edge_id * 2);
 	//return is_removed_hedge(edge_id << 1);
 	return _hedges[edge_id << 1].next_id == HE_INVALID_INDEX;
+}*/
+
+template<typename V>
+inline bool HEMesh<V>::is_begin_hedge(const int& hedge_id) const {
+	return _faces.find(hedge_id) != _faces.end() || _borders.find(hedge_id) != _borders.end();
 }
+
 
 template<typename V>
 inline bool HEMesh<V>::is_border_hedge(const int& hedge_id) const {
-	return _borders.find(hedge_id) != _borders.end();
+	check_hedge_id(hedge_id);
+	const int& b = id_begin(hedge_id);
+	return _borders.find(b) != _borders.end();
 }
 
 template<typename V>
 inline bool HEMesh<V>::is_border_edge(const int& hedge_id) const {
+	check_hedge_id(hedge_id);
 	return is_border_hedge(hedge_id) || is_border_hedge(id_twin(hedge_id));
 }
 
 template<typename V>
 inline bool HEMesh<V>::is_border_vert(const int& vert_id) const {
+	check_vert_id(vert_id);
 	const int& begin_id = _vert_to_hedge[vert_id];
 	int e = begin_id;
 
@@ -791,7 +875,15 @@ inline bool HEMesh<V>::is_border_vert(const int& vert_id) const {
 }
 
 template<typename V>
+inline bool HEMesh<V>::is_border_loop(const int& begin_id) const {
+	//check_hedge_id(begin_id);
+	//is_begin_hedge(begin_id);
+	return _borders.find(begin_id) != _borders.end();
+}
+
+template<typename V>
 inline bool HEMesh<V>::is_n_poly(const int& hedge_id, const int& n) const {
+	check_hedge_id(hedge_id);
 	int e = hedge_id;
 	
 	for (int i = 0; i < n; ++i)
@@ -802,6 +894,7 @@ inline bool HEMesh<V>::is_n_poly(const int& hedge_id, const int& n) const {
 
 template<typename V>
 inline int HEMesh<V>::get_n_poly(const int& hedge_id) const {
+	check_hedge_id(hedge_id);
 	int e = hedge_id;
 	int n = 0;
 
@@ -815,6 +908,7 @@ inline int HEMesh<V>::get_n_poly(const int& hedge_id) const {
 
 template<typename V>
 inline int HEMesh<V>::get_valence(const int& vert_id) const {
+	check_vert_id(vert_id);
 	const int& beg = _vert_to_hedge[vert_id];
 	int e = beg;
 	int n = 0;
@@ -829,6 +923,7 @@ inline int HEMesh<V>::get_valence(const int& vert_id) const {
 
 template<typename V>
 inline bool HEMesh<V>::is_extremal_vert(const int& vert_id) const {
+	check_vert_id(vert_id);
 	const int& he = _vert_to_hedge[vert_id];
 	
 	if (he == HE_ISOLATED_INDEX)
@@ -839,18 +934,21 @@ inline bool HEMesh<V>::is_extremal_vert(const int& vert_id) const {
 
 template<typename V>
 inline bool HEMesh<V>::is_isolated_vert(const int& vert_id) const {
+	check_vert_id(vert_id);
 	return _vert_to_hedge[vert_id] == HE_ISOLATED_INDEX;
 }
 
 template<typename V>
 inline bool HEMesh<V>::is_isolated_edge(const int& hedge_id) const {
+	check_hedge_id(hedge_id);
 	int t = id_twin(hedge_id);
 	return id_next(hedge_id) == t && id_next(t) == hedge_id;
 }
 
 template<typename V>
 inline bool HEMesh<V>::is_isolated_face(const int& hedge_id) const {
-	
+	check_hedge_id(hedge_id);
+
 	const int& f = id_begin(hedge_id);
 	int t = id_twin(hedge_id);
 	int e = t;
@@ -870,6 +968,8 @@ inline void HEMesh<V>::fill_holes() {
 
 template<typename V>
 inline bool HEMesh<V>::do_share_loop(const int& hedge_id1, const int& hedge_id2) const {
+	check_hedge_id(hedge_id1);
+	check_hedge_id(hedge_id2);
 	int e = hedge_id1;
 
 	do {
@@ -1029,7 +1129,7 @@ inline Iterable<typename HEMesh<V>::face_iter> HEMesh<V>::borders() const {
 	return Iterable<face_iter>(begin_borders(), end_borders());
 }
 
-template <typename V>
+/*template <typename V>
 inline Iterable<typename HEMesh<V>::vert_iter> HEMesh<V>::rvertices() const {
 	return Iterable<face_iter>(rbegin_verts(), rend_verts());
 }
@@ -1042,32 +1142,39 @@ inline Iterable<typename HEMesh<V>::vert_iter> HEMesh<V>::rhedges() const {
 template <typename V>
 inline Iterable<typename HEMesh<V>::vert_iter> HEMesh<V>::redges() const {
 	return Iterable<face_iter>(rbegin_edges(), rend_edges());
-}
+}*/
 
 
 template <typename V>
 inline typename HEMesh<V>::vert_iter HEMesh<V>::vert(const int& vert_id) const {
+	check_vert_id(vert_id);
 	return vert_iter(vert_id, const_cast<HEMesh<V>*>(this));
 }
 
 template <typename V>
 inline typename HEMesh<V>::hedge_iter HEMesh<V>::hedge(const int& hedge_id) const {
+	check_hedge_id(hedge_id);
 	return hedge_iter(hedge_id, const_cast<HEMesh<V>*>(this));
 }
 
 template <typename V>
 inline typename HEMesh<V>::hedge_iter HEMesh<V>::hedge(const int& tail_id, const int& head_id) const {
+	check_vert_id(tail_id);
+	check_vert_id(head_id);
 	return hedge_iter(id_hedge(tail_id, head_id), const_cast<HEMesh<V>*>(this));
 }
 
 template <typename V>
 inline typename HEMesh<V>::edge_iter HEMesh<V>::edge(const int& edge_id) const {
+	//check_edge_id(edge_id);
+	check_hedge_id(edge_id << 1);
 	return edge_iter(edge_id, const_cast<HEMesh<V>*>(this));
 }
 
-template <typename V>
+/*template <typename V>
 inline typename HEMesh<V>::face_iter HEMesh<V>::face(const int& hedge_id) const {
+	check_hedge_id(hedge_id);
 	return face_iter(hedge_id, const_cast<HEMesh<V>*>(this));
-}
+}*/
 
 #endif
