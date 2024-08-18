@@ -102,7 +102,7 @@ protected:
 	bool is_in_range_hedge(const int& hedge_id) const;
 	//bool is_in_range_edge(const int& edge_id) const;
 
-	void chech_vert_id(const int& vert_id) const;
+	void check_vert_id(const int& vert_id) const;
 	void check_hedge_id(const int& hedge_id) const;
 	//void check_edge_id(const int& edge_id) const;
 
@@ -166,7 +166,7 @@ public:
 
 	bool is_removed_vert(const int& vert_id) const;
 	bool is_removed_hedge(const int& hedge_id) const;
-	//bool is_removed_edge(const int& edge_id) const;
+	bool is_removed_edge(const int& edge_id) const;
 	bool is_begin_hedge(const int& hedge_id) const;	// is the given half edge the beginning of a face or border loop
 
 	bool is_border_hedge(const int& hedge_id) const;
@@ -377,7 +377,8 @@ public:
 
 	public:
 
-		edge_iter() : id(HE_INVALID_INDEX), hm(nullptr) {}
+		//edge_iter() : id(HE_INVALID_INDEX), hm(nullptr) {}
+		edge_iter() : hedge_id(HE_INVALID_INDEX), hm(nullptr) {}
 
 		//operator const int& () const { return id; }
 		//operator int() const { return id; }
@@ -388,9 +389,10 @@ public:
 		hedge_iter hedge() const { return hedge_iter(hedge_id, hm); }
 		operator hedge_iter() const { return hedge_iter(hedge_id, hm); }
 
-		bool is_removed() const { return hm->is_removed_edge(id); }
+		//bool is_removed() const { return hm->is_removed_edge(id); }
 		//bool is_border() const { return hm->is_border_edge(id << 1); }
 		//bool is_isolated() const { return hm->is_isolated_edge(id << 1); }
+		bool is_removed() const { return hm->is_removed_hedge(hedge_id); }
 		bool is_border() const { return hm->is_border_edge(hedge_id); }
 		bool is_isolated() const { return hm->is_isolated_edge(hedge_id); }
 
@@ -400,15 +402,15 @@ public:
 		const edge_iter* operator->() const { return this; }
 
 		//edge_iter& operator++() { do { ++id; } while (id < hm->edges_size() && hm->is_removed_edge(id)); return *this; } // Prefix increment
-		edge_iter& operator++() { do { hedge_id += 2; } while (id < hm->edges_size() && hm->is_removed_hedge(hedge_id)); return *this; } // Prefix increment
+		edge_iter& operator++() { do { hedge_id += 2; } while (hedge_id < hm->edges_size() && hm->is_removed_hedge(hedge_id)); return *this; } // Prefix increment
 		edge_iter operator++(int) { edge_iter temp = *this; ++(*this); return temp; } // Postfix increment
 		
 		//edge_iter& operator--() { do { --id; } while (id >= 0 && hm->is_removed_edge(id)); return *this; } // Prefix increment
 		edge_iter& operator--() { do { hedge_id -= 2; } while (hedge_id >= 0 && hm->is_removed_hedge(hedge_id)); return *this; } // Prefix decrement
 		edge_iter operator--(int) { edge_iter temp = *this; --(*this); return temp; } // Postfix decrement
 
-		friend bool operator== (const edge_iter& a, const edge_iter& b) { return a.id == b.id; };
-		friend bool operator!= (const edge_iter& a, const edge_iter& b) { return a.id != b.id; };
+		friend bool operator== (const edge_iter& a, const edge_iter& b) { return a.hedge_id == b.hedge_id; };
+		friend bool operator!= (const edge_iter& a, const edge_iter& b) { return a.hedge_id != b.hedge_id; };
 	};
 
 
@@ -467,12 +469,12 @@ public:
 
 template<typename V>
 inline bool HEMesh<V>::is_in_range_vert(const int& vert_id) const {
-	return 0 <= vert_id && vert_id < _vertices.size();
+	return 0 <= vert_id && vert_id < (int)_vertices.size();
 }
 
 template<typename V>
 inline bool HEMesh<V>::is_in_range_hedge(const int& hedge_id) const {
-	return 0 <= hedge_id && hedge_id < _hedges.size();
+	return 0 <= hedge_id && hedge_id < (int)_hedges.size();
 }
 
 /*template<typename V>
@@ -483,7 +485,7 @@ inline bool HEMesh<V>::is_in_range_edge(const int& edge_id) const {
 }*/
 
 template<typename V>
-inline void HEMesh<V>::chech_vert_id(const int& vert_id) const {
+inline void HEMesh<V>::check_vert_id(const int& vert_id) const {
 	if (!is_in_range_vert(vert_id))
 		throw std::out_of_range("Vertex index out of range");
 	if (is_removed_vert(vert_id))
@@ -830,12 +832,12 @@ inline bool HEMesh<V>::is_removed_hedge(const int& hedge_id) const {
 	return _hedges[hedge_id].next_id == HE_INVALID_INDEX;
 }
 
-/*template<typename V>
+template<typename V>
 inline bool HEMesh<V>::is_removed_edge(const int& edge_id) const {
 	//return is_removed_hedge(edge_id * 2);
 	//return is_removed_hedge(edge_id << 1);
 	return _hedges[edge_id << 1].next_id == HE_INVALID_INDEX;
-}*/
+}
 
 template<typename V>
 inline bool HEMesh<V>::is_begin_hedge(const int& hedge_id) const {

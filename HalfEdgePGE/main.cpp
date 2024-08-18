@@ -64,7 +64,7 @@ public:
 		hedge_iter e;	// curr half edge
 		hedge_iter ne;	// next half edge
 
-		for (const face_iter& f : hm.faces()) {
+		/*for (const face_iter& f : hm.faces()) {
 			e = *f;
 			ne = e.next();
 
@@ -76,6 +76,11 @@ public:
 				e = ne;
 				ne = ne.next();
 			} while (e != f);
+		}*/
+
+		for (const edge_iter& edge : hm.edges()) {
+			hedge_iter he = edge;
+			DrawLine(he.head()->pos, he.tail()->pos, color);
 		}
 	}
 
