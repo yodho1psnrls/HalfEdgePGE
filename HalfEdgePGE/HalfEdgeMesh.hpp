@@ -93,8 +93,13 @@ protected:
 	std::unordered_set<int> _borders{}; // the indexes of the half edges that are the beginnig of a border loop
 
 	// Garbage collection/recycling
+
 	std::set<int> _garbage_vertices{};	// stores vertex ids that are removed
-	std::set<int> _garbage_edges{};		// stores edge ids that are removed // i would prefer it to store half edge ids, but if one half edge is marked as removed, storing edge_id will also mark its twin half edge as removed
+	
+	// stores even half-edge ids, an id in the set indicates that both the half-edge
+	//  and its twin/opposite half-edge are tagged/marked as removed
+	std::set<int> _garbage_hedges{};
+	
 	//bool _are_verts_shrinked;
 	//bool _are_hedges_shrinked;
 
@@ -120,6 +125,11 @@ protected:
 	//  if no border is found returns HE_INVALID_INDEX and the given half_edge stays the same
 	int find_border_around_head(int& hedge_id);
 
+	// gives the smaller/even half-edge index of the edge of the given half-edge 
+	int id_ltwin(const int& hedge_id) const;
+
+	// gives the bigger/odd half-edge index of the edge of the given half-edge 
+	int id_rtwin(const int& hedge_id) const;
 
 	friend class vert_iter;
 	friend class hedge_iter;
@@ -154,13 +164,17 @@ public:
 	bool are_verts_shrinked() const;
 	bool are_edges_shrinked() const;
 
-	int vertices_size() const;
+	int verts_size() const;
 	int hedges_size() const;
 	int edges_size() const;
 	int faces_size() const;
 	int borders_size() const;
 
-	void reserve_vertices(const int& capacity);
+	int verts_max_size() const;	// gives the count of all vertices including removed/invalid ones
+	int hedges_max_size() const; // gives the count of all half-edges including removed/invalid ones
+	int edges_max_size() const;	// gives the count of all edges including removed_invalid ones
+
+	void reserve_verts(const int& capacity);
 	void reserve_hedges(const int& capacity);
 	void reserve_edges(const int& capacity);
 	//void reserve_faces(const int& capacity);
@@ -286,7 +300,7 @@ public:
 
 
 	// Iterables
-	Iterable<vert_iter> vertices() const;
+	Iterable<vert_iter> verts() const;
 	Iterable<hedge_iter> hedges() const;
 	Iterable<edge_iter> edges() const;
 	Iterable<face_iter> faces() const;
@@ -379,7 +393,8 @@ public:
 		//edge_iter edge() const { return edge_iter(id / 2, hm); }
 		edge_iter edge() const { return edge_iter(id >> 1, hm); }
 		vert_iter head() const { return vert_iter(hm->_hedges[id].head_id, hm); }
-		vert_iter tail() const { return vert_iter(hm->_hedges[hm->id_twin(id)].head_id, hm); }
+		//vert_iter tail() const { return vert_iter(hm->_hedges[hm->id_twin(id)].head_id, hm); }
+		vert_iter tail() const { return vert_iter(hm->_hedges[id ^ 1].head_id, hm); }
 		face_iter face() const { return face_iter(id, hm); }
 
 
@@ -463,7 +478,7 @@ public:
 		face_iter(const SetIter& it, HEMesh<V>* const& hmm) : iter(it), hm(hmm) {}
 
 		face_iter(const int& hedgeInFaceID, HEMesh<V>* const& hmm) : hm(hmm) {
-			const int& fi = hm->_hedges[hedgeInFaceID].faceID;
+			const int& fi = hm->_hedges[hedgeInFaceID].begin_id;
 			auto it = hm->_faces.find(fi);
 			iter = it != hm->_faces.end() ? it : hm->_borders.find(fi);
 		}
@@ -612,6 +627,17 @@ inline int HEMesh<V>::find_border_around_head(int& hedge_id) {
 	} while (hedge_id != begin_id);
 
 	return HE_INVALID_INDEX;
+}
+
+template<typename V>
+inline int HEMesh<V>::id_ltwin(const int& hedge_id) const {
+	//return (hedge_id / 2) * 2;
+	return (hedge_id >> 1) << 1;
+}
+
+template<typename V>
+inline int HEMesh<V>::id_rtwin(const int& hedge_id) const {
+	return ((hedge_id >> 1) << 1) + 1;
 }
 
 
@@ -769,7 +795,7 @@ inline void HEMesh<V>::clear() {
 	_faces.clear();
 	_borders.clear();
 	_garbage_vertices.clear();
-	_garbage_edges.clear();
+	_garbage_hedges.clear();
 }
 
 
@@ -777,7 +803,7 @@ template<typename V>
 inline bool HEMesh<V>::empty() const {
 	return _faces.empty() && _borders.empty();
 		//&& _vertices.size() == _garbage_vertices.size()
-		//&& 2ULL * _hedges.size() == _garbage_edges.size()
+		//&& 2ULL * _hedges.size() == _garbage_hedges.size()
 }
 
 
@@ -788,23 +814,23 @@ inline bool HEMesh<V>::are_verts_shrinked() const {
 
 template<typename V>
 inline bool HEMesh<V>::are_edges_shrinked() const {
-	return _garbage_edges.empty();
+	return _garbage_hedges.empty();
 }
 
 
 template<typename V>
-inline int HEMesh<V>::vertices_size() const {
+inline int HEMesh<V>::verts_size() const {
 	return _vertices.size() - _garbage_vertices.size();
 }
 
 template<typename V>
 inline int HEMesh<V>::hedges_size() const {
-	return _hedges.size() - _garbage_edges.size() * 2ULL;
+	return _hedges.size() - _garbage_hedges.size() * 2ULL;
 }
 
 template<typename V>
 inline int HEMesh<V>::edges_size() const {
-	return _hedges.size() / 2ULL - _garbage_edges.size();
+	return _hedges.size() / 2ULL - _garbage_hedges.size();
 }
 
 template<typename V>
@@ -819,7 +845,23 @@ inline int HEMesh<V>::borders_size() const {
 
 
 template<typename V>
-inline void HEMesh<V>::reserve_vertices(const int& capacity) {
+inline int HEMesh<V>::verts_max_size() const {
+	return _vertices.size();
+}
+
+template<typename V>
+inline int HEMesh<V>::hedges_max_size() const {
+	return _hedges.size();
+}
+
+template<typename V>
+inline int HEMesh<V>::edges_max_size() const {
+	return _hedges.size() / 2ULL;
+}
+
+
+template<typename V>
+inline void HEMesh<V>::reserve_verts(const int& capacity) {
 	_vertices.reserve(capacity);
 }
 
@@ -1212,6 +1254,7 @@ inline int HEMesh<V>::add_edge(const int& tail_id, const V& head) {
 }
 
 
+// @todo: Try to optimize it
 template <typename V>
 inline int HEMesh<V>::add_edge(const int& tail_id, const int& head_id, const bool make_face) {
 	check_vert_id(tail_id);
@@ -1335,6 +1378,8 @@ inline int HEMesh<V>::add_edge_at(const int& prev_id, const int& next_id) {
 	return ne;
 }
 
+
+// @todo: Try not to use add_edge and constrain it to not allow (inner-edges after the operation) or (edges/faces that cross the new face)
 template <typename V>
 inline int HEMesh<V>::add_face(const std::vector<int>& indices) {
 	if (indices.size() < 2ULL)
@@ -1365,6 +1410,119 @@ inline int HEMesh<V>::add_face(const std::vector<int>& indices) {
 
 	return id_hedge(indices[0], indices[1]);
 }
+
+
+template<typename V>
+inline void HEMesh<V>::remove_vert(const int& vert_id) {
+	check_vert_id(vert_id);
+
+	// Remove all of its adjacent edges
+	while (!is_isolated_vert(vert_id))
+		remove_edge(id_hedge(vert_id));
+
+	// Remove The Vertex
+	_vert_to_hedge[vert_id] = HE_INVALID_INDEX;
+	_garbage_vertices.insert(vert_id);
+}
+
+
+template<typename V>
+inline void HEMesh<V>::remove_edge(const int& hedge_id) {
+
+	if (is_removed_hedge(hedge_id))
+		return;
+
+	check_hedge_id(hedge_id);
+
+	int t = id_twin(hedge_id);
+	const int& nc = id_next(hedge_id);
+	const int& nt = id_next(t);
+	int pc = id_prev(hedge_id);
+	int pt = id_prev(t);
+
+	// Vert to Half-Edge arrangement
+
+	if (nt != hedge_id) {
+		_hedges[pc].next_id = nt;
+		_vert_to_hedge[id_head(t)] = nt;
+		//_vert_to_hedge[id_tail(nt)] == nt;
+	}
+	else {
+		_vert_to_hedge[id_head(t)] = HE_ISOLATED_INDEX;
+	}
+
+	if (nc != t) {
+		_hedges[pt].next_id = nc;
+		_vert_to_hedge[id_head(hedge_id)] = nc;
+	}
+	else {
+		_vert_to_hedge[id_head(hedge_id)] = HE_ISOLATED_INDEX;
+	}
+
+	// Faces and borders arrangement
+
+	int f = id_begin(hedge_id);
+	int tf = id_begin(t);
+
+	bool bFace = _borders.find(f) == _borders.end() && _borders.find(tf) == _borders.end();
+	_faces.erase(f);
+	_borders.erase(f);
+	_faces.erase(tf);
+	_borders.erase(tf);
+
+	if (nt != hedge_id) {
+		if (bFace) _faces.insert(nt);
+		else _borders.insert(nt);
+
+		set_begin_id(nt);
+	}
+
+	if (nc != t) {
+		//if (nt != hedge_id && f == tf) {
+		if (nt == hedge_id || (nt != hedge_id && f == tf)) {
+			if (bFace) _faces.insert(nc);
+			else _borders.insert(nc);
+
+			set_begin_id(nc);
+		}
+	}
+
+	// Invalidate the edge
+	_hedges[hedge_id] = HalfEdge();
+	_hedges[t] = HalfEdge();
+	_garbage_hedges.insert(id_ltwin(hedge_id));
+
+}
+
+
+template<typename V>
+inline void HEMesh<V>::remove_face(const int& hedge_id) {
+
+	check_hedge_id(hedge_id);
+
+	int f = id_begin(hedge_id);
+	int e = f;
+
+	std::vector<int> hedgesToRemove;
+
+	do {
+		if (is_border_hedge(id_twin(e)))
+			hedgesToRemove.push_back(e);
+
+		e = id_next(e);
+	} while (e != f);
+
+	if (hedgesToRemove.empty()) {
+		_faces.erase(f);
+		_borders.insert(f);
+	}
+	else
+		for (const int& he : hedgesToRemove)
+			remove_edge(he);
+
+
+}
+
 
   // ===================================================================================== //
 
@@ -1528,7 +1686,7 @@ inline typename HEMesh<V>::edge_iter HEMesh<V>::rend_edges() const {
 
 
 template <typename V>
-inline Iterable<typename HEMesh<V>::vert_iter> HEMesh<V>::vertices() const {
+inline Iterable<typename HEMesh<V>::vert_iter> HEMesh<V>::verts() const {
 	return Iterable<vert_iter>(begin_verts(), end_verts());
 }
 

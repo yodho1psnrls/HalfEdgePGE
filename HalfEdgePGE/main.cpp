@@ -168,32 +168,70 @@ public:
 	}
 
 	void keyInput() {
+
 		if (GetKey(olc::I).bReleased) print_info(he_mesh);
 		if (GetKey(olc::G).bReleased) mesh = he_mesh;
 		if (GetKey(olc::N).bReleased) hedge = hedge.next();
 		if (GetKey(olc::P).bReleased) hedge = hedge.prev();
 		if (GetKey(olc::T).bReleased) hedge = hedge.twin();
-
-		if (GetKey(olc::B).bReleased) {
-			if (hedge.is_border())
-				std::cout << "Border half-edge\n";
-			else
-				std::cout << "Face half-edge\n";
+		
+		if (GetKey(olc::E).bReleased) {
+			int given_hedge_id;
+			std::cin >> given_hedge_id;
+			hedge = he_mesh.hedge(given_hedge_id);
 		}
-			
+
+		// Draws the begin half-edge of the loop and indicates is it a face(GREEN) or border(RED)
+		if (GetKey(olc::SPACE).bHeld) {
+			drawHalfEdge(hedge.face(), olc::WHITE);
+
+			if (hedge.is_border())
+				FillRect({ 0, 0 }, { 15, 15 }, olc::RED);
+			else
+				FillRect({ 0, 0 }, { 15, 15 }, olc::GREEN);
+		}
+		
+		if (GetKey(olc::R).bReleased) {
+			auto temp = hedge;
+
+			if (hedge.next().twin() == hedge)
+				temp = hedge.next().next();
+			else
+				temp = hedge.next();
+
+			he_mesh.remove_edge(hedge.index());
+
+			hedge = temp;
+		}
+
+		if (GetKey(olc::F).bReleased) {
+			auto temp = hedge.prev();
+
+			he_mesh.remove_vert(hedge.head().index());
+
+			hedge = temp;
+		}
 
 	}
 
 	void print_info(const Mesh<V>& m) const {
+		std::cout << "================\n";
 		std::cout << "vertices: " << m.vertices.size() << "\n";
 		std::cout << "triangles: " << m.indices.size() / 3ULL << "\n";
+		std::cout << "\n";
 	}
 
 	void print_info(const HEMesh<V>& hm) const {
-		std::cout << "vertices: " << hm.vertices_size() << "\n";
+		std::cout << "================\n";
+		std::cout << "vertices: " << hm.verts_size() << "\n";
+		std::cout << "max_verts: " << hm.verts_max_size() << "\n";
+		std::cout << "\n";
 		std::cout << "edges: " << hm.edges_size() << "\n";
+		std::cout << "max_edges: " << hm.edges_max_size() << "\n";
+		std::cout << "\n";
 		std::cout << "faces: " << hm.faces_size() << "\n";
 		std::cout << "borders: " << hm.borders_size() << "\n";
+		std::cout << "\n";
 	}
 
 
@@ -215,7 +253,7 @@ public:
 		hm.add_face({ 0, 1, 2, 3 });
 
 
-		for (V& v : hm.vertices())
+		for (V& v : hm.verts())
 			v.pos = to_screen(v.pos);
 
 		return hm;
@@ -241,7 +279,7 @@ public:
 		he = hm.add_edge(hm.hedge(he).head().index(), 0);*/
 
 
-		for (V& v : hm.vertices())
+		for (V& v : hm.verts())
 			v.pos = to_screen(v.pos);
 
 		return hm;
@@ -251,11 +289,11 @@ public:
 public:
 	bool OnUserCreate() override {
 		
-		//mesh = generate_plane<V>(5, 0.9f);
-		//he_mesh = mesh;
+		mesh = generate_plane<V>(5, 0.9f);
+		he_mesh = mesh;
 		
-		he_mesh = test_mesh1();
-		mesh = he_mesh;
+		//he_mesh = test_mesh1();
+		//mesh = he_mesh;
 
 		print_info(he_mesh);
 
