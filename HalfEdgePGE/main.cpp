@@ -37,9 +37,9 @@ public:
 
 			// To better visualize the different triangles, we will color them based on
 			// their uv.x coordinate
-			float diffuse = (a.uv.x + b.uv.x + c.uv.x) / 3.0f;
+		//	float diffuse = (a.uv.x + b.uv.x + c.uv.x) / 3.0f;
 			//float diffuse = (b.pos - a.pos).norm().perp().dot((c.pos - a.pos).norm());
-			//float diffuse = 0.5f;
+			float diffuse = 0.5f;
 
 
 			FillTriangle(
@@ -78,10 +78,14 @@ public:
 			} while (e != f);
 		}*/
 
-		for (const edge_iter& edge : hm.edges()) {
+		/*for (const auto& edge : hm.edges()) {
 			hedge_iter he = edge;
 			DrawLine(he.head()->pos, he.tail()->pos, color);
-		}
+		}*/
+
+		for (const hedge_iter& half_edge : hm.edges())
+			DrawLine(half_edge.head()->pos, half_edge.tail()->pos, color);
+
 	}
 
 	void drawHalfArrow(const olc::vf2d& from, const olc::vf2d& to, const olc::Pixel& color = olc::WHITE) {
@@ -169,6 +173,15 @@ public:
 		if (GetKey(olc::N).bReleased) hedge = hedge.next();
 		if (GetKey(olc::P).bReleased) hedge = hedge.prev();
 		if (GetKey(olc::T).bReleased) hedge = hedge.twin();
+
+		if (GetKey(olc::B).bReleased) {
+			if (hedge.is_border())
+				std::cout << "Border half-edge\n";
+			else
+				std::cout << "Face half-edge\n";
+		}
+			
+
 	}
 
 	void print_info(const Mesh<V>& m) const {
@@ -184,11 +197,66 @@ public:
 	}
 
 
+	HEMesh<V> test_mesh1() {
+		using namespace olc;
+
+		HEMesh<V> hm;
+
+		hm.add_vert(vf2d(-0.5f, -0.5f));
+		hm.add_vert(vf2d(-0.5f, 0.5f));
+		hm.add_vert(vf2d(0.5f, 0.5f));
+		hm.add_vert(vf2d(0.5f, -0.5f));
+
+		/*hm.add_edge(0, 1, true);
+		hm.add_edge(1, 2, true);
+		hm.add_edge(2, 3, true);
+		hm.add_edge(3, 0, true);*/
+
+		hm.add_face({ 0, 1, 2, 3 });
+
+
+		for (V& v : hm.vertices())
+			v.pos = to_screen(v.pos);
+
+		return hm;
+	}
+
+	HEMesh<V> test_mesh2() {
+		using namespace olc;
+
+		HEMesh<V> hm;
+
+		hm.add_vert(vf2d(-0.5f, -0.5f));
+
+
+		hm.add_edge(0, vf2d(-0.5f, 0.5f));
+		hm.add_edge(1, vf2d(0.5f, 0.5f));
+		hm.add_edge(2, vf2d(0.5f, -0.5f));
+		hm.add_edge(3, 0);
+
+		/*int he;
+		he = hm.add_edge(0, vf2d(-0.5f, 0.5f));
+		he = hm.add_edge(hm.hedge(he).head().index(), vf2d(0.5f, 0.5f));
+		he = hm.add_edge(hm.hedge(he).head().index(), vf2d(0.5f, -0.5f));
+		he = hm.add_edge(hm.hedge(he).head().index(), 0);*/
+
+
+		for (V& v : hm.vertices())
+			v.pos = to_screen(v.pos);
+
+		return hm;
+	}
+
+
 public:
 	bool OnUserCreate() override {
 		
-		mesh = generate_plane<V>(5, 0.9f);
-		he_mesh = mesh;
+		//mesh = generate_plane<V>(5, 0.9f);
+		//he_mesh = mesh;
+		
+		he_mesh = test_mesh1();
+		mesh = he_mesh;
+
 		print_info(he_mesh);
 
 		selected_vert_id = -1;

@@ -41,9 +41,8 @@ Mesh<V> generate_plane(const int div, const float screen_percentage = 1.0f) {
 			v.uv = olc::vf2d(float(i) / div, float(j) / div); // from 0 to 1
 			v.pos = 2.0f * v.uv - olc::vf2d(1.0f, 1.0f);	  // from -1 to 1
 			v.pos *= screen_percentage;
-			v.pos.y = -v.pos.y;
-			v.pos = (v.pos + olc::vf2d(1.0f, 1.0f)) * 0.5f;
-			v.pos *= olc::vf2d(scrW, scrH);
+			
+			v.pos = to_screen(v.pos);
 
 			mesh.vertices.push_back(v);
 		}

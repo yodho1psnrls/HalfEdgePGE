@@ -15,6 +15,13 @@ inline float fract(const float x) {
 	//return x - floor(x);
 }
 
+// from x(-1, 1) and y(-1, 1) to x(0, scrW) and y(0, scrH), and reverts Y axis 
+inline olc::vf2d to_screen(olc::vf2d v) {
+	v.y = -v.y;
+	v = (v + olc::vf2d(1.0f, 1.0f)) * 0.5f; // to (0, 1)
+	return v * olc::vf2d(scrW, scrH);
+}
+
 // template specialization for std::hash to work with std::pair
 namespace std {
 	template<typename T, typename Y> struct std::hash<std::pair<T, Y>> {
