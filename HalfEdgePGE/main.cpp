@@ -83,7 +83,7 @@ public:
 			DrawLine(he.head()->pos, he.tail()->pos, color);
 		}*/
 
-		for (const hedge_iter& half_edge : hm.edges())
+		for (hedge_iter half_edge : hm.edges())
 			DrawLine(half_edge.head()->pos, half_edge.tail()->pos, color);
 
 	}
@@ -174,6 +174,12 @@ public:
 		if (GetKey(olc::N).bReleased) hedge = hedge.next();
 		if (GetKey(olc::P).bReleased) hedge = hedge.prev();
 		if (GetKey(olc::T).bReleased) hedge = hedge.twin();
+		if (GetKey(olc::V).bReleased) he_mesh.check_validity();
+		
+		if (GetKey(olc::S).bReleased) {
+			he_mesh.remove_isolated_verts();
+			he_mesh.shrink();
+		}
 		
 		if (GetKey(olc::E).bReleased) {
 			int given_hedge_id;
@@ -208,6 +214,8 @@ public:
 			auto temp = hedge.prev();
 
 			he_mesh.remove_vert(hedge.head().index());
+
+			//he_mesh.triangulate();
 
 			hedge = temp;
 		}
