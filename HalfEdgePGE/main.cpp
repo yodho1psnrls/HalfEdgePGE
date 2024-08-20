@@ -37,9 +37,9 @@ public:
 
 			// To better visualize the different triangles, we will color them based on
 			// their uv.x coordinate
-		//	float diffuse = (a.uv.x + b.uv.x + c.uv.x) / 3.0f;
+			float diffuse = (a.uv.x + b.uv.x + c.uv.x) / 3.0f;
 			//float diffuse = (b.pos - a.pos).norm().perp().dot((c.pos - a.pos).norm());
-			float diffuse = 0.5f;
+		//	float diffuse = 0.5f;
 
 
 			FillTriangle(
@@ -253,16 +253,29 @@ public:
 		hm.add_vert(vf2d(0.5f, 0.5f));
 		hm.add_vert(vf2d(0.5f, -0.5f));
 
-		/*hm.add_edge(0, 1, true);
+		hm.add_edge(0, 1, true);
 		hm.add_edge(1, 2, true);
 		hm.add_edge(2, 3, true);
-		hm.add_edge(3, 0, true);*/
 
-		hm.add_face({ 0, 1, 2, 3 });
+		hm.add_edge(3, 0, true);
+		//hm.split_face_at(1, 4);
+		//hm.add_edge_at(1, 4);
+
+	//	hm.add_face({ 0, 1, 2, 3 });
+
+		
+		for (int i = 0; i < 1000; ++i) {
+			hm.remove_edge(hm.id_hedge(0, 3));
+			hm.add_edge(0, 3, true);
+		}
+
+		print_info(he_mesh);
 
 
-		for (V& v : hm.verts())
+		for (V& v : hm.verts()) {
 			v.pos = to_screen(v.pos);
+			v.uv += vf2d(0.5f, 0.5f);
+		}
 
 		return hm;
 	}
@@ -287,8 +300,10 @@ public:
 		he = hm.add_edge(hm.hedge(he).head().index(), 0);*/
 
 
-		for (V& v : hm.verts())
+		for (V& v : hm.verts()) {
 			v.pos = to_screen(v.pos);
+			v.uv += vf2d(0.5f, 0.5f);
+		}
 
 		return hm;
 	}
@@ -300,8 +315,8 @@ public:
 		mesh = generate_plane<V>(5, 0.9f);
 		he_mesh = mesh;
 		
-		//he_mesh = test_mesh1();
-		//mesh = he_mesh;
+	//	he_mesh = test_mesh1();
+	//	mesh = he_mesh;
 
 		print_info(he_mesh);
 
@@ -314,6 +329,8 @@ public:
 
 	bool OnUserUpdate(float fElapsedTime) override {
 		Clear(olc::BLACK);
+
+		mesh = he_mesh;
 
 		drawMesh(mesh);
 		drawWireFrame(he_mesh);
