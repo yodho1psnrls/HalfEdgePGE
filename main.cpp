@@ -253,29 +253,29 @@ public:
 		hm.add_vert(vf2d(0.5f, 0.5f));
 		hm.add_vert(vf2d(0.5f, -0.5f));
 
-		hm.add_edge(0, 1, true);
-		hm.add_edge(1, 2, true);
-		hm.add_edge(2, 3, true);
+		//hm.add_edge(0, 1, true);
+		//hm.add_edge(1, 2, true);
+		//hm.add_edge(2, 3, true);
+		//hm.add_edge(3, 0, true);
 
-		hm.add_edge(3, 0, true);
-		//hm.split_face_at(1, 4);
-		//hm.add_edge_at(1, 4);
+		int nf = hm.add_face({ 0, 1, 2, 3 });
+		//std::cout << nf << "\n";
 
-	//	hm.add_face({ 0, 1, 2, 3 });
+		//hm.add_edge_at(0, 4);
+		//hm.add_edge_at(2, 6);
 
-		
+
 		for (int i = 0; i < 1000; ++i) {
-			hm.remove_edge(hm.id_hedge(0, 3));
-			hm.add_edge(0, 3, true);
+			hm.remove_edge(hm.id_hedge(0, 1));
+			hm.add_edge(0, 1, true);
 		}
-
-		print_info(he_mesh);
 
 
 		for (V& v : hm.verts()) {
 			v.pos = to_screen(v.pos);
 			v.uv += vf2d(0.5f, 0.5f);
 		}
+
 
 		return hm;
 	}
@@ -287,11 +287,35 @@ public:
 
 		hm.add_vert(vf2d(-0.5f, -0.5f));
 
-
 		hm.add_edge(0, vf2d(-0.5f, 0.5f));
 		hm.add_edge(1, vf2d(0.5f, 0.5f));
 		hm.add_edge(2, vf2d(0.5f, -0.5f));
+
 		hm.add_edge(3, 0);
+		//hm.split_face_at(1, 4);
+		//hm.add_edge_at(1, 4);
+
+		std::vector<int> test_face_hedges;
+		hedge = hm.hedge(0);
+		auto e = hedge;
+
+		do {
+			auto ne = e.next();
+			test_face_hedges.push_back(hm.add_edge_at(e.index(), 0.5f * e.head()->pos));
+			e = ne;
+		} while (e != hedge);
+
+		hm.add_face_at(test_face_hedges);
+
+
+		//int vi = hm.add_vert(vf2d(0.0f, 0.0f));
+		//hm.add_edge(0, vi);
+		//hm.add_edge(vi, 1);
+
+		//hm.add_edge(vi, 1);
+		//hm.add_edge(vi, 2);
+		//hm.add_edge(vi, 3);
+
 
 		/*int he;
 		he = hm.add_edge(0, vf2d(-0.5f, 0.5f));
@@ -308,15 +332,39 @@ public:
 		return hm;
 	}
 
+	void test_mesh3() {
+		mesh = generate_plane<V>(5, 0.9f);
+
+		for (const V& v : mesh.vertices)
+			he_mesh.add_vert(v);
+
+		for (int i = 0; i < mesh.indices.size(); i += 3) {
+			for (int j = 0; j < 3; ++j) {
+				const int& vi0 = mesh.indices[i + j];
+				const int& vi1 = mesh.indices[(i + j + 1) % 3];
+
+				he_mesh.add_edge(vi0, vi1);
+			}
+		}
+
+	}
+
 
 public:
 	bool OnUserCreate() override {
-		
-		mesh = generate_plane<V>(5, 0.9f);
-		he_mesh = mesh;
-		
-	//	he_mesh = test_mesh1();
-	//	mesh = he_mesh;
+
+		// Try removing some faces of the grid and see if most of the times
+		//  the begin index of the loop is preserved, if the begin index is not removed
+
+	//	mesh = generate_plane<V>(5, 0.9f);
+	//	he_mesh = mesh;
+
+		he_mesh = test_mesh2();
+		mesh = he_mesh;
+
+		// test_mesh3();
+
+		he_mesh.check_validity();
 
 		print_info(he_mesh);
 

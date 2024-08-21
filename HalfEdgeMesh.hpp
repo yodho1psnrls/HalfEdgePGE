@@ -148,7 +148,14 @@ protected:
 
 	//int new_vert();	// you dont need that, since it is the same as add_vert
 	int new_edge(); // creates a new INVALID_INDEX initialized pair of half-edges, returns the half-edge index of the edge
-	int new_edge(const int& tail_id, const int& head_id);
+	int new_edge(int tail_id, int head_id);
+
+	// if the HEMesh is in a valid state, you should use id_begin(he1) == id_begin(he2),
+	//  but during modification of the begin_ids of the half-edges, you can rely on this method
+	//  which checks if they are in the same loop, based on their next_id, so it 
+	//  starts to loop from he1 and searches for he2
+	bool are_same_loop(const int& hedge_id1, const int& hedge_id2) const;
+
 
 
 	friend class vert_iter;
@@ -258,10 +265,6 @@ public:
 	//  but this is very restrictive, because a user may want to use the HEMesh only for that
 
 
-	//bool do_share_loop(const int& hedge_id1, const int& hedge_id2) const; // true if the two half-edges share the same face or border loop
-	bool are_same_loop(const int& hedge_id1, const int& hedge_id2) const; // true if the two half-edges share the same face or border loop
-
-
 	// Operations
 
 	void fill_holes();	// fills all holes of the surface of the mesh (all border loops are made face loops)
@@ -274,7 +277,12 @@ public:
 	void remove_isolated_verts();	// clears the mesh of all vertices that doesnt share any edge
 
 	void swap_next(const int& hedge_id1, const int& hedge_id2); // swaps the next indexes of the two half-edges and rearanges the face or border begin hedge ids properly
-	int split_face_at(const int& hedge_id1, const int& hedge_id2);	// splits the face or border loop adding a new edge at the head vertices of the given half-edges, it returns the id of the newly created face loop, if you want the index of the new half-edge, it is id_next(hedge_id1)
+	//	void swap_next(const int& hedge_id1, const int& hedge_id2, const bool bFace);
+	//	void swap_next_same_loop(const int& hedge_id1, const int& hedge_id2);
+	//	void swap_next_diff_loop(const int& hedge_id1, const int& hedge_id2);
+
+	int split_face_at(const int& back_hedge_id, const int& front_hedge_id);	// splits the face or border loop adding a new edge at the head vertices of the given half-edges, it returns the id of the newly created face loop, if you want the index of the new half-edge, it is id_next(hedge_id1)
+
 	//void make_isolated(const int& vert_id);	// removes all adjacent edges of the given vertex
 	void remove_edges(const int& vert_id);	// removes all adjacent edges of the given vertex
 
@@ -284,16 +292,19 @@ public:
 
 	int add_vert(const V& v); // returns the index of the new vertex
 	int add_edge(const int& tail_id, const V& head);	// returns the index of the new half_edge which head vertex is the id of the new added head vertex
-	int add_edge(const int& tail_id, const int& head_id, const bool make_face = false);	// if make_face is true, it makes a face if the two given vertices had shared a common border loop
+	int add_edge(const int& tail_id, const int& head_id, const bool make_face = true);	// if make_face is true, it makes a face if the two given vertices had shared a common border loop
 
 	// Adds a half-edge, such that its next hedge becomes the next of front_hedge (before the operation)
 	//  and the next of its twin becomes the next of back_hedge (before the operation)
-	int add_edge_at(const int& back_hedge_id, const int& front_hedge_id);
+	int add_edge_at(const int& back_hedge_id, const int& front_hedge_id, const bool make_face = true);
+	int add_edge_at(const int& back_hedge_id, const V& head);
 
-	int add_face(const std::vector<int>& indices);	// returns the half-edge index that indicates the beginning of the face loop
+	int add_face(const std::vector<int>& vert_indices);	// returns the half-edge index that indicates the beginning of the face loop
+	int add_face_at(const std::vector<int>& hedge_indices);
 
 	void remove_vert(const int& vert_id);
 	void remove_edge(const int& hedge_id);
+	void remove_edge(const int& vertA, const int& vertB);
 	void remove_face(const int& hedge_id);
 
 	// reconnects the half-edge, such that its head vertex points to the head of the front_hedge
@@ -307,7 +318,7 @@ public:
 
 
 	// With Iterators
-
+	/*
 	void swap_next(const hedge_iter& hedge1, const hedge_iter& hedge2); // swaps the next indexes of the two hedges and rearanges the face or border begin hedge ids properly
 
 	//vert_iter add_vert(const V& v);
@@ -322,7 +333,7 @@ public:
 
 	void move_edge(const hedge_iter& hedge, const hedge_iter& new_next);
 	void move_edge(const hedge_iter& hedge, const hedge_iter& new_prev, const hedge_iter& new_next);
-
+	*/
 
 
 	// =================================== ITERATORS ========================================= //
@@ -391,8 +402,8 @@ public:
 
 		vert_iter() : id(HE_INVALID_INDEX), hm(nullptr) {}
 
-		//operator const int& () const { return id; }
-		//operator int() const { return id; }
+		operator const int& () const { return id; }
+		operator int() const { return id; }
 		const int& index() const { return id; }
 
 		bool is_removed() const { return hm->is_removed_vert(id); }
@@ -442,8 +453,8 @@ public:
 	//	operator edge_iter() const { return edge_iter(id >> 1, hm); }
 		operator edge_iter() const { return edge_iter(id, hm); }
 
-		//operator const int& () const { return id; }
-		//operator int() const { return id; }
+		operator const int& () const { return id; }
+		operator int() const { return id; }
 		const int& index() const { return id; }
 
 		bool is_removed() const { return hm->is_removed_hedge(id); }
@@ -498,6 +509,8 @@ public:
 		//operator const int& () const { return id; }
 		//operator int() const { return id; }
 		//const int& index() const { return id; }
+		operator const int& () const { return hedge_id; }
+		operator int() const { return hedge_id; }
 		int index() const { return hedge_id >> 1; }
 
 		//hedge_iter hedge() const { return hedge_iter(id << 1, hm); }
@@ -553,8 +566,11 @@ public:
 
 		face_iter() = delete;
 
-		operator hedge_iter() const { return hedge(); }
+		operator const int& () const { return *iter; }
+		operator int() const { return *iter; }
+		//const int& index() const { return *iter; }
 
+		operator hedge_iter() const { return hedge(); }
 		hedge_iter hedge() const { return hedge_iter(*iter, hm); }
 
 		bool is_removed() const { return hm->is_begin_hedge(*iter); }
@@ -748,7 +764,7 @@ inline void HEMesh<V>::set_vert_id(const int& hedge_id, const int& new_head_vert
 	//for (int e = hedge_id; id_head(e) != new_head_vert_id; e = id_twin(id_next(e)))
 	//	_hedges[e].head_id = new_head_vert_id;
 
-	//_vert_to_hedge[new_head_vert_id] = id_next(hedge_id);
+//	_vert_to_hedge[new_head_vert_id] = id_next(hedge_id);	// should this method also update the _vert_to_hedge vector ??
 }
 
 template<typename V>
@@ -813,6 +829,7 @@ inline int HEMesh<V>::id_rtwin(const int& hedge_id) const {
 }
 
 
+
 template<typename V>
 inline int HEMesh<V>::new_edge() {
 	int ne;		// new half-edge index
@@ -832,7 +849,7 @@ inline int HEMesh<V>::new_edge() {
 }
 
 template<typename V>
-inline int HEMesh<V>::new_edge(const int& tail_id, const int& head_id) {
+inline int HEMesh<V>::new_edge(int tail_id, int head_id) {
 	int ne;		// new half-edge index
 	int net;	// new twin half-edge index
 
@@ -855,6 +872,8 @@ inline int HEMesh<V>::new_edge(const int& tail_id, const int& head_id) {
 
 	return ne;
 }
+
+
 
 
 template<typename V>
@@ -1571,18 +1590,16 @@ inline void HEMesh<V>::swap_next(const int& hedge_id1, const int& hedge_id2) {
 
 	bool bSameLoop = id_begin(hedge_id1) == id_begin(hedge_id2);
 
-	if (!bSameLoop) {	// join the two faces
+	if (!bSameLoop) {	// join the two loops
 		// Erase the old face of hedge2 and replace it with the face of hedge1
 		int fa = id_begin(hedge_id1);
 		int fb = id_begin(hedge_id2);
 
-		// if fa is face, then swap them so fb is face (which will be erased and the border will win)
+		// makes such that if fa or fb is a border, it joins the two faces into a border
 		if (_borders.find(fa) == _borders.end())
-			//if (_borders.find(fb) == _borders.end())
 			std::swap(fa, fb);
 
-		//setFaceID(heB, fa); // if fa and fb were swapped, then heA and heB should have also been swapped !
-		set_begin_id(fb, fa);
+		set_begin_id(fb, fa); // if fa and fb were swapped, then heA and heB should have also been swapped !
 
 		_borders.erase(fb);
 		_faces.erase(fb);
@@ -1590,13 +1607,10 @@ inline void HEMesh<V>::swap_next(const int& hedge_id1, const int& hedge_id2) {
 
 	std::swap(_hedges[hedge_id1].next_id, _hedges[hedge_id2].next_id);
 
-	// YOU SHOULD HANDLE THE CASE WHERE THEY SHARE A FACE, because then you need to create a new face
-	// If same face, then split it into two faces
-	if (bSameLoop) {
-		int f = id_begin(hedge_id1);	// face
-		int nf = are_same_loop(hedge_id1, f) ? hedge_id2 : hedge_id1;	// new face
+	if (bSameLoop) {	// split it into two loops
+		int f = id_begin(hedge_id1);	// current loop begin
+		int nf = are_same_loop(hedge_id1, f) ? hedge_id2 : hedge_id1;	// new loop begin
 
-		//_faces.insert(nf);
 		if (_borders.find(f) == _borders.end()) _faces.insert(nf);
 		else _borders.insert(nf);
 
@@ -1605,46 +1619,39 @@ inline void HEMesh<V>::swap_next(const int& hedge_id1, const int& hedge_id2) {
 
 }
 
+
 template<typename V>
-inline int HEMesh<V>::split_face_at(const int& hedge_id1, const int& hedge_id2) {
-	check_hedge_id(hedge_id1);
-	check_hedge_id(hedge_id2);
+inline int HEMesh<V>::split_face_at(const int& back_hedge_id, const int& front_hedge_id) {
+	check_hedge_id(back_hedge_id);
+	check_hedge_id(front_hedge_id);
 
-	int f = id_begin(hedge_id1);
+	int f = id_begin(back_hedge_id);
 
-	if (f != id_begin(hedge_id2))
+	if (f != id_begin(front_hedge_id))
 		throw std::invalid_argument("The two half-edges should be in the same face or border loop");
 
-	int neA;
-	int neB;
+	int neA = new_edge(); // new half-edge
+	int neB = neA + 1;	  // new twin half-edge
 
-	if (_garbage_edges.empty()) {
-		neA = _hedges.size();
-		neB = neA + 1;
+	//	std::cout << "Split Face At\n";
 
-		_hedges.push_back(HalfEdge());
-		_hedges.push_back(HalfEdge());
-	}
-	else {
-		auto front_iter = _garbage_edges.begin();
-		neA = *front_iter;	// assuming that all indexes in _garbage_edges are even
-		neB = neA + 1;
-		_garbage_edges.erase(front_iter);
-	}
+	_hedges[neA] = _hedges[front_hedge_id];
+	_hedges[neB] = _hedges[back_hedge_id];
 
-	_hedges[neA] = _hedges[hedge_id2];
-	_hedges[neB] = _hedges[hedge_id1];
+	_hedges[back_hedge_id].next_id = neA;
+	_hedges[front_hedge_id].next_id = neB;
 
-	_hedges[hedge_id1].next_id = neA;
-	_hedges[hedge_id2].next_id = neB;
+	int nf = are_same_loop(back_hedge_id, f) ? front_hedge_id : back_hedge_id;
 
-	int nf = are_same_loop(hedge_id1, f) ? hedge_id2 : hedge_id1;
+	//	_faces.insert(nf);
 	if (_borders.find(f) == _borders.end()) _faces.insert(nf);
 	else _borders.insert(nf);
+
 	set_begin_id(nf);
 
 	return nf;
 }
+
 
 template<typename V>
 //inline void HEMesh<V>::make_isolated(const int& vert_id) {
@@ -1659,6 +1666,7 @@ inline void HEMesh<V>::remove_edges(const int& vert_id) {
 	for (int he = id_hedge(vert_id); he != HE_ISOLATED_INDEX; he = id_hedge(vert_id))
 		remove_edge(he);
 }
+
 
 template <typename V>
 inline int HEMesh<V>::add_vert(const V& v) {
@@ -1727,7 +1735,7 @@ inline int HEMesh<V>::add_edge(const int& tail_id, const V& head) {
 }
 
 
-// @todo: Try to optimize it
+// @todo: Try to optimize it, or at least organize the implementation code better
 template <typename V>
 inline int HEMesh<V>::add_edge(const int& tail_id, const int& head_id, const bool make_face) {
 	check_vert_id(tail_id);
@@ -1755,6 +1763,11 @@ inline int HEMesh<V>::add_edge(const int& tail_id, const int& head_id, const boo
 				_borders.erase(f);
 				_faces.insert(f);
 			}
+
+			//	if (!is_border_loop(f) && is_isolated_face(f)) {
+			//		_faces.erase(f);
+			//		_borders.insert(f);
+			//	}
 
 			return id_next(eA);
 		}
@@ -1808,7 +1821,8 @@ inline int HEMesh<V>::add_edge(const int& tail_id, const int& head_id, const boo
 		return ne;
 	}
 	else {
-		_borders.erase(net);
+		_borders.erase(ne);
+		_faces.erase(ne);
 		_hedges.pop_back();
 		_hedges.pop_back();
 		return HE_INVALID_INDEX;
@@ -1817,7 +1831,7 @@ inline int HEMesh<V>::add_edge(const int& tail_id, const int& head_id, const boo
 
 
 template <typename V>
-inline int HEMesh<V>::add_edge_at(const int& back_hedge_id, const int& front_hedge_id) {
+inline int HEMesh<V>::add_edge_at(const int& back_hedge_id, const int& front_hedge_id, const bool make_face) {
 	check_hedge_id(back_hedge_id);
 	check_hedge_id(front_hedge_id);
 
@@ -1827,13 +1841,24 @@ inline int HEMesh<V>::add_edge_at(const int& back_hedge_id, const int& front_hed
 	int ne = new_edge(va, vb);  // new half-edge
 	int net = ne + 1;			// new half edge twin
 
-	if (!(is_border_hedge(back_hedge_id) || is_border_hedge(front_hedge_id)))
-		_faces.insert(net);
-	else
-		_borders.insert(net);
+	bool bSameLoop = id_begin(back_hedge_id) == id_begin(front_hedge_id);
+	_borders.insert(ne);
+
+	/*_faces.insert(ne);
+	int f = id_begin(back_hedge_id);
+	if (make_face && is_border_loop(f) && f == id_begin(front_hedge_id)) {
+		_borders.erase(f);
+		_faces.insert(f);
+	}*/
 
 	swap_next(back_hedge_id, net);
 	swap_next(front_hedge_id, ne);
+
+	const int& f = id_begin(ne);
+	if (make_face && bSameLoop) { // && is_border_loop(f)
+		_borders.erase(f);
+		_faces.insert(f);
+	}
 
 	_vert_to_hedge[va] = ne;
 	_vert_to_hedge[vb] = net;
@@ -1842,31 +1867,71 @@ inline int HEMesh<V>::add_edge_at(const int& back_hedge_id, const int& front_hed
 }
 
 
+template <typename V>
+inline int HEMesh<V>::add_edge_at(const int& back_hedge_id, const V& head) {
+	check_hedge_id(back_hedge_id);
+	int head_id = add_vert(head);
+
+	int ne = new_edge(id_head(back_hedge_id), head_id);	// new edge half-edge that points to head_id
+	int net = ne + 1;	// new twin half-edge
+	_faces.insert(ne);
+
+	swap_next(back_hedge_id, net);
+	return ne;
+}
+
+
 // @todo: Try not to use add_edge and constrain it to not allow (inner-edges after the operation) or (edges/faces that cross the new face)
 template <typename V>
-inline int HEMesh<V>::add_face(const std::vector<int>& indices) {
-	if (indices.size() < 2ULL)
+inline int HEMesh<V>::add_face(const std::vector<int>& vert_indices) {
+	if (vert_indices.size() < 2ULL)
 		throw std::invalid_argument("The number of new face indices cannot be smaller than 2");
 
 	bool isEdgeAdded = false;
 
-	for (int i = 0, n = (int)indices.size() - 1ULL; i < n; ++i) {
-		check_vert_id(indices[i]);
+	for (int i = 0, n = (int)vert_indices.size() - 1ULL; i < n; ++i) {
+		check_vert_id(vert_indices[i]);
 
-		if (id_hedge(indices[i], indices[i + 1]) == HE_ISOLATED_INDEX) {
-			add_edge(indices[i], indices[i + 1], true);
+		if (id_hedge(vert_indices[i], vert_indices[i + 1]) == HE_ISOLATED_INDEX) {
+			add_edge(vert_indices[i], vert_indices[i + 1], true);
 			isEdgeAdded = true;
 		}
 	}
 
-	int e = id_hedge(indices.back(), indices.front());
+	int e = id_hedge(vert_indices.back(), vert_indices.front());
 	if (e == HE_ISOLATED_INDEX) {
-		e = add_edge(indices.back(), indices.front(), true);
+		e = add_edge(vert_indices.back(), vert_indices.front(), true);
 		isEdgeAdded = true;
 	}
 
 	const int& f = id_begin(e);
 	if (!isEdgeAdded) {
+		_borders.erase(f);
+		_faces.insert(f);
+	}
+
+	return f;
+}
+
+
+template <typename V>
+inline int HEMesh<V>::add_face_at(const std::vector<int>& hedge_indices) {
+
+	split_face_at(hedge_indices.back(), hedge_indices.front());
+	int prev_hedge_id = id_next(hedge_indices.back());
+	//	int last_hedge = id_twin(prev_hedge_id);
+
+	//	for (int i = 1, n = hedge_indices.size(); i < n - 1; ++i) {
+	for (int i = 1, n = hedge_indices.size(); i < n; ++i) {
+		const int& he = hedge_indices[i];
+		split_face_at(prev_hedge_id, he);
+		prev_hedge_id = id_next(prev_hedge_id);
+	}
+
+	//	split_face_at(prev_hedge_id, last_hedge);
+
+	const int& f = id_begin(prev_hedge_id);
+	if (is_border_loop(f)) {
 		_borders.erase(f);
 		_faces.insert(f);
 	}
@@ -1896,7 +1961,7 @@ inline void HEMesh<V>::remove_vert(const int& vert_id) {
 	_vert_to_hedge[vert_id] = HE_INVALID_INDEX;
 }
 
-
+// @todo: Try to make this method to conserve begin half-edge indexes as much as possible
 template<typename V>
 inline void HEMesh<V>::remove_edge(const int& hedge_id) {
 
@@ -1963,6 +2028,12 @@ inline void HEMesh<V>::remove_edge(const int& hedge_id) {
 	_hedges[hedge_id] = HalfEdge();
 	_hedges[t] = HalfEdge();
 
+}
+
+
+template<typename V>
+inline void HEMesh<V>::remove_edge(const int& vertA, const int& vertB) {
+	remove_edge(id_hedge(vertA, vertB));
 }
 
 
