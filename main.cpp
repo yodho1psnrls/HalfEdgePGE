@@ -22,9 +22,8 @@ class Example : public olc::PixelGameEngine {
 	//int hedge_id;
 	hedge_iter hedge;
 
-	//@todo: Save the state of the mesh after some operations, so you can undo and outdo
-	//std::vector<Mesh<V>> prevHistory;
-	//std::vector<Mesh<V>> nextHistory;
+	std::vector<std::pair<HEMesh<V>, int>> prev_history;
+	std::vector<std::pair<HEMesh<V>, int>> next_history;
 
 public:
 	Example() { sAppName = "Example"; }
@@ -83,8 +82,8 @@ public:
 			DrawLine(he.head()->pos, he.tail()->pos, color);
 		}*/
 
-		for (hedge_iter half_edge : hm.edges())
-			DrawLine(half_edge.head()->pos, half_edge.tail()->pos, color);
+for (hedge_iter half_edge : hm.edges())
+DrawLine(half_edge.head()->pos, half_edge.tail()->pos, color);
 
 	}
 
@@ -156,7 +155,7 @@ public:
 					selected_vert_id = vit.index();
 					break;
 				}
-				
+
 
 		if (GetMouse(0).bReleased)
 			selected_vert_id = -1;
@@ -175,7 +174,28 @@ public:
 		if (GetKey(olc::P).bReleased) hedge = hedge.prev();
 		if (GetKey(olc::T).bReleased) hedge = hedge.twin();
 		if (GetKey(olc::V).bReleased) he_mesh.check_validity();
-		
+
+		if (GetKey(olc::Z).bReleased && !prev_history.empty()) {
+			next_history.push_back({ he_mesh, hedge.index() });
+
+			auto pairr = prev_history.back();
+			he_mesh = pairr.first;
+			hedge = he_mesh.hedge(pairr.second);
+
+			prev_history.pop_back();
+		}
+
+		if (GetKey(olc::X).bReleased && !next_history.empty()) {
+			prev_history.push_back({ he_mesh, hedge.index() });
+
+			auto pairr = next_history.back();
+			he_mesh = pairr.first;
+			hedge = he_mesh.hedge(pairr.second);
+
+			next_history.pop_back();
+		}
+
+
 		if (GetKey(olc::S).bReleased) {
 			he_mesh.remove_isolated_verts();
 			he_mesh.shrink();
@@ -198,6 +218,8 @@ public:
 		}
 		
 		if (GetKey(olc::R).bReleased) {
+			prev_history.push_back({ he_mesh, hedge.index() });
+
 			auto temp = hedge;
 
 			if (hedge.next().twin() == hedge)
@@ -211,6 +233,8 @@ public:
 		}
 
 		if (GetKey(olc::F).bReleased) {
+			prev_history.push_back({ he_mesh, hedge.index() });
+
 			auto temp = hedge.prev();
 
 			he_mesh.remove_vert(hedge.head().index());

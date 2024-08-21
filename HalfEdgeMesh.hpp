@@ -1496,8 +1496,7 @@ inline void HEMesh<V>::fill_holes() {
 }
 
 
-// Consider using a more robust triangulation method, that handles non-flat or concave polygon faces
-// But for now this does the job, if the faces are convex, and should be fast
+// @todo: Consider using a more robust triangulation method, that handles concave or non-planar polygon faces
 template<typename V>
 inline void HEMesh<V>::triangulate(const int& hedge_id) {
 	check_hedge_id(hedge_id);
@@ -1914,6 +1913,8 @@ inline int HEMesh<V>::add_face(const std::vector<int>& vert_indices) {
 }
 
 
+// @todo: This method here will brake if there is already added edge in the
+//		  where a new edge will be added, so try to handle that
 template <typename V>
 inline int HEMesh<V>::add_face_at(const std::vector<int>& hedge_indices) {
 
