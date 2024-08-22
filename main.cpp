@@ -217,7 +217,9 @@ DrawLine(half_edge.head()->pos, half_edge.tail()->pos, color);
 				FillRect({ 0, 0 }, { 15, 15 }, olc::GREEN);
 		}
 		
+
 		if (GetKey(olc::R).bReleased) {
+			next_history.clear();
 			prev_history.push_back({ he_mesh, hedge.index() });
 
 			auto temp = hedge;
@@ -230,18 +232,24 @@ DrawLine(half_edge.head()->pos, half_edge.tail()->pos, color);
 			he_mesh.remove_edge(hedge.index());
 
 			hedge = temp;
+
+			he_mesh.check_validity();
 		}
 
 		if (GetKey(olc::F).bReleased) {
+			next_history.clear();
 			prev_history.push_back({ he_mesh, hedge.index() });
-
-			auto temp = hedge.prev();
-
-			he_mesh.remove_vert(hedge.head().index());
-
+			
 			//he_mesh.triangulate();
+			//auto temp = hedge.prev();
+			//he_mesh.remove_vert(hedge.head());
+			
+			//he_mesh.shift_begin(hedge.face(), 13);
+			he_mesh.flip_edge(hedge.index());
+			
 
-			hedge = temp;
+		//	hedge = temp;
+			he_mesh.check_validity();
 		}
 
 	}
@@ -256,11 +264,11 @@ DrawLine(half_edge.head()->pos, half_edge.tail()->pos, color);
 	void print_info(const HEMesh<V>& hm) const {
 		std::cout << "================\n";
 		std::cout << "vertices: " << hm.verts_size() << "\n";
-		std::cout << "max_verts: " << hm.verts_max_size() << "\n";
-		std::cout << "\n";
+	//	std::cout << "max_verts: " << hm.verts_max_size() << "\n";
+	//	std::cout << "\n";
 		std::cout << "edges: " << hm.edges_size() << "\n";
-		std::cout << "max_edges: " << hm.edges_max_size() << "\n";
-		std::cout << "\n";
+	//	std::cout << "max_edges: " << hm.edges_max_size() << "\n";
+	//	std::cout << "\n";
 		std::cout << "faces: " << hm.faces_size() << "\n";
 		std::cout << "borders: " << hm.borders_size() << "\n";
 		std::cout << "\n";
@@ -325,7 +333,10 @@ DrawLine(half_edge.head()->pos, half_edge.tail()->pos, color);
 
 		do {
 			auto ne = e.next();
-			test_face_hedges.push_back(hm.add_edge_at(e.index(), 0.5f * e.head()->pos));
+			
+			//test_face_hedges.push_back(hm.add_edge_at(e.index(), 0.5f * e.head()->pos));
+			test_face_hedges.push_back(hm.add_edge_at(e.index(), 0.5f * *e.head()));
+
 			e = ne;
 		} while (e != hedge);
 
@@ -376,24 +387,20 @@ DrawLine(half_edge.head()->pos, half_edge.tail()->pos, color);
 
 public:
 	bool OnUserCreate() override {
-
 		// Try removing some faces of the grid and see if most of the times
 		//  the begin index of the loop is preserved, if the begin index is not removed
 
-	//	mesh = generate_plane<V>(5, 0.9f);
-	//	he_mesh = mesh;
+		mesh = generate_plane<V>(5, 0.9f);
+		he_mesh = mesh;
 
-		he_mesh = test_mesh2();
-		mesh = he_mesh;
+		//he_mesh = test_mesh2();
+		//mesh = he_mesh;
 
 		// test_mesh3();
 
 		he_mesh.check_validity();
-
 		print_info(he_mesh);
-
 		selected_vert_id = -1;
-		//hedge_id = INIT_HEDGE_ID;
 		hedge = he_mesh.hedge(INIT_HEDGE_ID);
 
 		return true;
