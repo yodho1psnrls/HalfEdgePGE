@@ -245,7 +245,8 @@ DrawLine(half_edge.head()->pos, half_edge.tail()->pos, color);
 			//he_mesh.remove_vert(hedge.head());
 			
 			//he_mesh.shift_begin(hedge.face(), 13);
-			he_mesh.flip_edge(hedge.index());
+			//he_mesh.flip_edge(hedge.index());
+			he_mesh.refine_edge(hedge);
 			
 
 		//	hedge = temp;
@@ -390,7 +391,7 @@ public:
 		// Try removing some faces of the grid and see if most of the times
 		//  the begin index of the loop is preserved, if the begin index is not removed
 
-		mesh = generate_plane<V>(5, 0.9f);
+		mesh = generate_plane<V>(3, 0.9f);
 		he_mesh = mesh;
 
 		//he_mesh = test_mesh2();

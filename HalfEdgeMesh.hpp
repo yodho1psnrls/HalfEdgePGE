@@ -320,8 +320,8 @@ public:
 	// ========================== HIGH-LEVEL OPERATIONS ================================ //
 
 	void flip_edge(const int& hedge_id);
-
-	
+	int refine_edge(const int& hedge_id, const V& v);
+	int refine_edge(const int& hedge_id, const float h = 0.5f);
 
 
 	// With Iterators
@@ -2175,6 +2175,38 @@ inline void HEMesh<V>::flip_edge(const int& hedge_id) {
 	std::swap(_hedges[nc].begin_id, _hedges[nt].begin_id);
 
 }
+
+template<typename V>
+inline int HEMesh<V>::refine_edge(const int& hedge_id, const V& v) {
+	check_hedge_id(hedge_id);
+
+	int c = hedge_id;
+	int t = id_twin(c);
+
+	int vi = add_vert(v);
+
+	int ne = new_edge();
+	int net = id_twin(ne);
+
+	_hedges[id_prev(t)].next_id = net;
+	_hedges[ne] = _hedges[c];
+
+	_hedges[c] = HalfEdge(vi, ne, id_begin(ne));
+	_hedges[net] = HalfEdge(vi, t, id_begin(t));
+
+
+	return vi;
+}
+
+template<typename V>
+inline int HEMesh<V>::refine_edge(const int& hedge_id, const float h) {
+	const V& va = _vertices[id_head(hedge_id)];	// head vertex
+	const V& vb = _vertices[id_tail(hedge_id)]; // tail vertex
+
+	return refine_edge(hedge_id, h * va + (1.0f - h) * vb);
+}
+
+
 
 
 // ===================================================================================== //
