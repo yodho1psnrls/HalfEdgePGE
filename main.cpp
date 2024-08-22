@@ -246,7 +246,12 @@ DrawLine(half_edge.head()->pos, half_edge.tail()->pos, color);
 			
 			//he_mesh.shift_begin(hedge.face(), 13);
 			//he_mesh.flip_edge(hedge.index());
-			he_mesh.refine_edge(hedge);
+			//he_mesh.refine_edge(hedge);
+
+			V v = *hedge.head();
+			v.pos += olc::vf2d(-10.0f, -17.0f);
+			//he_mesh.split_vert_to_edge(hedge, hedge.next().twin(), v);
+			he_mesh.split_vert_to_faces(hedge, hedge.next().twin(), v);
 			
 
 		//	hedge = temp;
