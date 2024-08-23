@@ -304,7 +304,7 @@ public:
 	int add_edge_at(const int& back_hedge_id, const V& head);
 
 	int add_face(const std::vector<int>& vert_indices);	// returns the half-edge index that indicates the beginning of the face loop
-	int add_face_at(const std::vector<int>& hedge_indices);
+	int add_face_at(const std::vector<int>& hedge_indices, const bool bMakeFace = true);
 
 	void remove_vert(const int& vert_id);
 	void remove_edge(const int& hedge_id);
@@ -352,6 +352,12 @@ public:
 	// Collapses the face into a vertex, returns the index of the vertex
 	int collapse_face(const int& hedge_id, const V& v);
 	int collapse_face(const int& hedge_id);	// the resulting vertex is the midpoint/center of the face
+
+	// Bevel operations
+	int bevel_vert(const int& vert_id, const float h = 0.5f);
+	int bevel_edge(const int& hedge_id, const float h = 0.5f);
+	int bevel_face(const int& hedge_id, const float h = 0.5f);
+
 
 
 	// With Iterators
@@ -438,6 +444,8 @@ public:
 	public:
 
 		vert_iter() : id(HE_INVALID_INDEX), hm(nullptr) {}
+		
+		vert_iter& operator=(const int& id) { this->id = id; return *this; }
 
 		operator const int& () const { return id; }
 		//operator int() const { return id; }
@@ -485,6 +493,8 @@ public:
 	public:
 
 		hedge_iter() : id(HE_INVALID_INDEX), hm(nullptr) {}
+
+		hedge_iter& operator=(const int& id) { this->id = id; return *this; }
 
 		//operator edge_iter() const { return edge_iter(id / 2, hm); }
 	//	operator edge_iter() const { return edge_iter(id >> 1, hm); }
@@ -543,6 +553,8 @@ public:
 
 		//edge_iter() : id(HE_INVALID_INDEX), hm(nullptr) {}
 		edge_iter() : hedge_id(HE_INVALID_INDEX), hm(nullptr) {}
+
+		edge_iter& operator=(const int& id) { this->id = (id >> 1) << 1; return *this; }
 
 		//operator const int& () const { return id; }
 		//operator int() const { return id; }
@@ -1613,6 +1625,7 @@ inline void HEMesh<V>::make_border(const int& hedge_id) {
 	}
 }
 
+// @todo: Try to do it without using std::unordered_set
 template<typename V>
 inline void HEMesh<V>::remove_dub_edges(int vert_id) {
 	int beg = _vert_to_hedge[vert_id];
@@ -2075,11 +2088,13 @@ inline int HEMesh<V>::add_edge_at(const int& back_hedge_id, const int& front_hed
 template <typename V>
 inline int HEMesh<V>::add_edge_at(const int& back_hedge_id, const V& head) {
 	check_hedge_id(back_hedge_id);
-	int head_id = add_vert(head);
+	int vi = add_vert(head);
 
-	int ne = new_edge(id_head(back_hedge_id), head_id);	// new edge half-edge that points to head_id
+	int ne = new_edge(id_head(back_hedge_id), vi);	// new edge half-edge that points to head_id
 	int net = ne + 1;	// new twin half-edge
 	_faces.insert(ne);
+
+	_vert_to_hedge[vi] = net;
 
 	swap_next(back_hedge_id, net);
 	return ne;
@@ -2122,7 +2137,7 @@ inline int HEMesh<V>::add_face(const std::vector<int>& vert_indices) {
 // @todo: This method here will brake if there is already added edge in the
 //		  where a new edge will be added, so try to handle that
 template <typename V>
-inline int HEMesh<V>::add_face_at(const std::vector<int>& hedge_indices) {
+inline int HEMesh<V>::add_face_at(const std::vector<int>& hedge_indices, const bool bMakeFace) {
 
 	split_face_at(hedge_indices.back(), hedge_indices.front());
 	int prev_hedge_id = id_next(hedge_indices.back());
@@ -2138,7 +2153,7 @@ inline int HEMesh<V>::add_face_at(const std::vector<int>& hedge_indices) {
 	//	split_face_at(prev_hedge_id, last_hedge);
 
 	const int& f = id_begin(prev_hedge_id);
-	if (is_border_loop(f)) {
+	if (bMakeFace && is_border_loop(f)) {
 		_borders.erase(f);
 		_faces.insert(f);
 	}
@@ -2520,6 +2535,7 @@ inline int HEMesh<V>::collapse_edge(const int& hedge_id, const float h) {
 }
 
 
+// @todo: FIX! It works most of the time, but on a long border loop, it breaks
 template<typename V>
 inline int HEMesh<V>::collapse_face(const int& hedge_id, const V& v) {
 	check_hedge_id(hedge_id);
@@ -2615,6 +2631,38 @@ inline int HEMesh<V>::collapse_face(const int& hedge_id) {
 	} while (e != hedge_id);
 
 	return collapse_face(hedge_id, center / float(n));
+}
+
+
+template<typename V>
+inline int HEMesh<V>::bevel_face(const int& hedge_id, const float h) {
+	check_hedge_id(hedge_id);
+
+	// Calculate mid-point/center
+	int e = hedge_id;
+	int n = 0;
+	V center;
+	do {
+		center += _vertices[id_head(e)];
+		++n;
+
+		e = id_next(e);
+	} while (e != hedge_id);
+	center /= float(n);
+
+	// Create the new edges that connect the old face and the new inner face
+	std::vector<int> new_hedges;
+	do {
+		int ne = id_next(e);
+
+		const V& v = _vertices[id_head(e)];
+		new_hedges.push_back(add_edge_at(e, h * center + (1.0f - h) * v));
+
+		e = ne;
+	} while (e != hedge_id);
+
+	
+	return add_face_at(new_hedges, false);
 }
 
 

@@ -245,9 +245,10 @@ public:
 			//he_mesh.collapse_edge(hedge);
 
 			//auto temp = hedge.prev().twin().next();
-			he_mesh.collapse_face(hedge);
-			hedge = he_mesh.begin_hedges();
+			//he_mesh.collapse_face(hedge);
+			//hedge = he_mesh.begin_hedges();
 
+			hedge = he_mesh.bevel_face(hedge);
 
 		//	hedge = temp;
 			he_mesh.check_validity();
