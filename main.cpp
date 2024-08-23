@@ -5,7 +5,7 @@
 #include <iostream>
 
 const float PINDIST = 8.0f;	// the range that the mouse will select a vertex
-const int INIT_HEDGE_ID = 0;
+const int INIT_HEDGE_ID = 15;
 
 template <typename V>
 class Example : public olc::PixelGameEngine {
@@ -180,6 +180,9 @@ public:
 		if (GetKey(olc::S).bReleased) {
 			he_mesh.remove_isolated_verts();
 			he_mesh.shrink();
+
+			if (hedge.index() >= he_mesh.hedges_max_size())
+				hedge = he_mesh.begin_hedges();
 		}
 		
 		if (GetKey(olc::E).bReleased) {
@@ -238,11 +241,15 @@ public:
 			//he_mesh.split_edge(hedge, 0.5f);
 			//he_mesh.clip_corner(hedge);
 
-			auto temp = hedge.prev().twin();
-			he_mesh.collapse_edge(hedge);
+			//auto temp = hedge.prev().twin();
+			//he_mesh.collapse_edge(hedge);
+
+			//auto temp = hedge.prev().twin().next();
+			he_mesh.collapse_face(hedge);
+			hedge = he_mesh.begin_hedges();
 
 
-			hedge = temp;
+		//	hedge = temp;
 			he_mesh.check_validity();
 		}
 
