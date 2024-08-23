@@ -157,6 +157,8 @@ protected:
 	void make_face(const int& hedge_id);	// makes the face or border loop of the given half-edge a face
 	void make_border(const int& hedge_id);	// makes the face or border loop of the given half-edge a border
 
+	void invalidate_vert(const int& vert_id);
+	void invalidate_edge(const int& hedge_id);
 
 	friend class vert_iter;
 	friend class hedge_iter;
@@ -283,7 +285,7 @@ public:
 	//	void swap_next_same_loop(const int& hedge_id1, const int& hedge_id2);
 	//	void swap_next_diff_loop(const int& hedge_id1, const int& hedge_id2);
 
-	int split_face_at(const int& back_hedge_id, const int& front_hedge_id);	// splits the face or border loop adding a new edge at the head vertices of the given half-edges, it returns the id of the newly created face loop, if you want the index of the new half-edge, it is id_next(hedge_id1)
+	int split_face_at(int back_hedge_id, int front_hedge_id);	// splits the face or border loop adding a new edge at the head vertices of the given half-edges, it returns the id of the newly created face loop, if you want the index of the new half-edge, it is id_next(hedge_id1)
 
 	//void make_isolated(const int& vert_id);	// removes all adjacent edges of the given vertex
 	void remove_edges(const int& vert_id);	// removes all adjacent edges of the given vertex
@@ -320,6 +322,10 @@ public:
 	// ========================== HIGH-LEVEL OPERATIONS ================================ //
 
 	void flip_edge(const int& hedge_id);
+
+	// adds a new vertex between the edge, the given half-edge's head vertex
+	//  is the new one, after the operations and its next is the new edge half-edge
+	//  it returns the id of the new created vertex
 	int refine_edge(const int& hedge_id, const V& v);
 	int refine_edge(const int& hedge_id, const float h = 0.5f);
 
@@ -331,6 +337,17 @@ public:
 	//  , returns a new half-edge index (from the created edge) 
 	//  and its head vertex is the new vertex
 	int split_vert_to_faces(const int& hedgeA, const int& hedgeB, const V& v);
+
+	int split_edge(const int& hedge_id, const V& v);
+	int split_edge(const int& hedge_id, const float h = 0.5f);
+
+	int clip_corner(const int& hedge_id);	// clips the corner that the hedge points to into a new triangle face
+
+	// Collapses the edge into a vertex, returns the index of the vertex
+	int collapse_edge(const int& hedge_id, const V& v);
+	int collapse_edge(const int& hedge_id, const float h = 0.5f);
+
+
 
 	// With Iterators
 	/*
@@ -1560,6 +1577,21 @@ inline void HEMesh<V>::make_border(const int& hedge_id) {
 	}
 }
 
+template<typename V>
+inline void HEMesh<V>::invalidate_vert(const int& vert_id) {
+	_vert_to_hedge[vert_id] = HE_INVALID_INDEX;
+	_garbage_vertices.insert(vert_id);
+}
+
+template<typename V>
+inline void HEMesh<V>::invalidate_edge(const int& hedge_id) {
+	int he = id_ltwin(hedge_id);
+
+	_hedges[he] = HalfEdge();
+	_hedges[he + 1] = HalfEdge();
+	_garbage_edges.insert(he);
+}
+
 
 // ===================================================================================== //
 
@@ -1669,8 +1701,7 @@ template<typename V>
 inline void HEMesh<V>::remove_isolated_verts() {
 	for (int vi = 0; vi < _vertices.size(); ++vi)
 		if (_vert_to_hedge[vi] == HE_ISOLATED_INDEX) {
-			_garbage_vertices.insert(vi);
-			_vert_to_hedge[vi] = HE_INVALID_INDEX;
+			invalidate_vert(vi);
 		}
 }
 
@@ -1720,7 +1751,7 @@ inline void HEMesh<V>::swap_next(const int& hedge_id1, const int& hedge_id2) {
 
 
 template<typename V>
-inline int HEMesh<V>::split_face_at(const int& back_hedge_id, const int& front_hedge_id) {
+inline int HEMesh<V>::split_face_at(int back_hedge_id, int front_hedge_id) {
 	check_hedge_id(back_hedge_id);
 	check_hedge_id(front_hedge_id);
 
@@ -2058,8 +2089,7 @@ inline void HEMesh<V>::remove_vert(const int& vert_id) {
 		remove_edge(he);
 
 	// Remove The Vertex
-	_garbage_vertices.insert(vert_id);
-	_vert_to_hedge[vert_id] = HE_INVALID_INDEX;
+	invalidate_vert(vert_id);
 }
 
 // @todo: Try to make this method to conserve begin half-edge indexes as much as possible
@@ -2071,6 +2101,7 @@ inline void HEMesh<V>::remove_edge(const int& hedge_id) {
 
 	check_hedge_id(hedge_id);
 
+	int c = hedge_id;
 	int t = id_twin(hedge_id);
 	const int& nc = id_next(hedge_id);
 	const int& nt = id_next(t);
@@ -2079,7 +2110,7 @@ inline void HEMesh<V>::remove_edge(const int& hedge_id) {
 
 	// Vert to Half-Edge arrangement
 
-	if (nt != hedge_id) {
+	if (nt != c) {
 		_hedges[pc].next_id = nt;
 		_vert_to_hedge[id_head(t)] = nt;
 		//_vert_to_hedge[id_tail(nt)] == nt;
@@ -2090,15 +2121,15 @@ inline void HEMesh<V>::remove_edge(const int& hedge_id) {
 
 	if (nc != t) {
 		_hedges[pt].next_id = nc;
-		_vert_to_hedge[id_head(hedge_id)] = nc;
+		_vert_to_hedge[id_head(c)] = nc;
 	}
 	else {
-		_vert_to_hedge[id_head(hedge_id)] = HE_ISOLATED_INDEX;
+		_vert_to_hedge[id_head(c)] = HE_ISOLATED_INDEX;
 	}
 
 	// Faces and borders arrangement
 
-	int f = id_begin(hedge_id);
+	int f = id_begin(c);
 	int tf = id_begin(t);
 
 	bool bFace = _borders.find(f) == _borders.end() && _borders.find(tf) == _borders.end();
@@ -2107,7 +2138,7 @@ inline void HEMesh<V>::remove_edge(const int& hedge_id) {
 	_faces.erase(tf);
 	_borders.erase(tf);
 
-	if (nt != hedge_id) {
+	if (nt != c) {
 		if (bFace) _faces.insert(nt);
 		else _borders.insert(nt);
 
@@ -2115,8 +2146,8 @@ inline void HEMesh<V>::remove_edge(const int& hedge_id) {
 	}
 
 	if (nc != t) {
-		//if (nt != hedge_id && f == tf) {
-		if (nt == hedge_id || (nt != hedge_id && f == tf)) {
+		//if (nt != c && f == tf) {
+		if (nt == c || (nt != c && f == tf)) {
 			if (bFace) _faces.insert(nc);
 			else _borders.insert(nc);
 
@@ -2124,11 +2155,7 @@ inline void HEMesh<V>::remove_edge(const int& hedge_id) {
 		}
 	}
 
-	// Invalidate the edge
-	_garbage_edges.insert(id_ltwin(hedge_id));
-	_hedges[hedge_id] = HalfEdge();
-	_hedges[t] = HalfEdge();
-
+	invalidate_edge(c);
 }
 
 
@@ -2242,17 +2269,18 @@ inline int HEMesh<V>::refine_edge(const int& hedge_id, const V& v) {
 	int c = hedge_id;
 	int t = id_twin(c);
 
-	int vi = add_vert(v);
-
 	int ne = new_edge();
 	int net = id_twin(ne);
+
+	int vi = add_vert(v);
+	_vert_to_hedge[vi] = ne;
+	_vert_to_hedge[id_head(hedge_id)] = net;
 
 	_hedges[id_prev(t)].next_id = net;
 	_hedges[ne] = _hedges[c];
 
 	_hedges[c] = HalfEdge(vi, ne, id_begin(ne));
 	_hedges[net] = HalfEdge(vi, t, id_begin(t));
-
 
 	return vi;
 }
@@ -2279,6 +2307,7 @@ inline int HEMesh<V>::split_vert_to_edge(const int& hedgeA, const int& hedgeB, c
 
 	int vi = add_vert(v);	// new vertex index
 	_vert_to_hedge[vi] = net;
+	_vert_to_hedge[id_head(hedgeA)] = ne;
 
 	_hedges[ne] = _hedges[hedgeA];
 	_hedges[ne].head_id = vi;
@@ -2304,6 +2333,136 @@ inline int HEMesh<V>::split_vert_to_faces(const int& hedgeA, const int& hedgeB, 
 	make_face(net);
 
 	return ne;
+}
+
+template<typename V>
+inline int HEMesh<V>::split_edge(const int& hedge_id, const V& v) {
+
+	int vi = refine_edge(hedge_id, v);
+
+	int t = id_twin(hedge_id);
+	int ne = id_next(hedge_id); // new half-edge after the refinement
+
+	if (!is_border_hedge(hedge_id))
+		split_face_at(hedge_id, id_next(ne));
+
+	if (!is_border_hedge(t))
+		split_face_at(id_twin(ne), id_next(t));
+
+	return vi;
+}
+
+template<typename V>
+inline int HEMesh<V>::split_edge(const int& hedge_id, const float h) {
+	const V& va = _vertices[id_head(hedge_id)];	// head vertex
+	const V& vb = _vertices[id_tail(hedge_id)]; // tail vertex
+
+	return split_edge(hedge_id, h * va + (1.0f - h) * vb);
+}
+
+template<typename V>
+inline int HEMesh<V>::clip_corner(const int& hedge_id) {
+	check_hedge_id(hedge_id);
+
+	//if (get_n_poly(hedge_id) <= 3)
+	if (is_n_poly(hedge_id, 2) || is_n_poly(hedge_id, 3))
+		//throw std::invalid_argument("Cannot clip the corner of a degrade or triangle face");
+		return HE_INVALID_INDEX;
+
+
+	return split_face_at(id_prev(hedge_id), id_next(hedge_id));
+}
+
+
+template <typename V>
+inline int HEMesh<V>::collapse_edge(const int& hedge_id, const V& v) {
+	check_hedge_id(hedge_id);
+
+	int c = hedge_id;
+	int t = id_twin(c);
+	const int& nc = id_next(c);
+	const int& nt = id_next(t);
+
+	int vt = id_head(t);	// the vertex that we collapse the edge into
+	int vc = id_head(c);	// the deleted/removed vertex after the collapse
+	_vertices[vt] = v;
+
+	// Checking if it has adjacent faces (that are not the edge itself) and if so, are those faces degrade (2-sided), then it is a degrade face
+	// if (!is_isolated_edge(c) && is_n_poly(c, 2))
+	if (nc != t && id_next(nc) == c)
+		remove_edge(nc);
+	if (nt != c && id_next(nt) == t)
+		remove_edge(nt);
+
+	// Remove the faces, if isolated or shift the face beging hedges, if it happens that it has adjacent edges
+	// and one of the adjacent faces begin half edge is in the collapsed edge
+	if (is_isolated_edge(c)) {
+		_faces.erase(id_begin(c));
+		_borders.erase(id_begin(c));
+	}
+	else {
+		if (id_begin(t) == t) {
+			int by = nt != c ? 1 : 2;
+			shift_begin(t, by);
+		}
+
+		if (id_begin(c) == c) {
+			int by = nc != t ? 1 : 2;
+			shift_begin(c, by);
+		}
+	}
+	
+	int pc = id_prev(c);
+	int pt = id_prev(t);
+
+	// Rearrange the adjacent of the collapsed edge half-edges and update their head vertex 
+	if (nc != t) {
+		set_vert_id(id_twin(nc), vt);
+		_hedges[pt].next_id = nt != c ? nt : nc;
+	}
+	if (nt != c) {
+		_hedges[pc].next_id = nc != t ? nc : nt;
+		_vert_to_hedge[vt] = id_next(t);
+	}
+	else
+		_vert_to_hedge[vt] = nc != t ? nc : HE_ISOLATED_INDEX; // !!!
+
+	invalidate_edge(c);
+	invalidate_vert(vc);
+
+	// Remove dublicate edges
+	if (id_hedge(vt) != HE_ISOLATED_INDEX) {
+		std::unordered_set<int> dub_verts;
+		const int& beg = _vert_to_hedge[vt];
+		int e = beg;
+
+		do {
+			if (is_removed_hedge(e))
+				break;
+
+			const int& vi = id_head(e);
+			int ne = id_next(id_twin(e));
+
+			if (dub_verts.find(vi) != dub_verts.end())
+				remove_edge(e);
+			else
+				dub_verts.insert(vi);
+
+			e = ne;
+		} while (e != beg);
+	}
+
+	
+
+	return vt;
+}
+
+template<typename V>
+inline int HEMesh<V>::collapse_edge(const int& hedge_id, const float h) {
+	const V& va = _vertices[id_head(hedge_id)];	// head vertex
+	const V& vb = _vertices[id_tail(hedge_id)]; // tail vertex
+
+	return collapse_edge(hedge_id, h * va + (1.0f - h) * vb);
 }
 
 

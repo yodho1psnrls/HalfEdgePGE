@@ -63,27 +63,8 @@ public:
 		hedge_iter e;	// curr half edge
 		hedge_iter ne;	// next half edge
 
-		/*for (const face_iter& f : hm.faces()) {
-			e = *f;
-			ne = e.next();
-
-			do {
-
-				//if (hm.idTwin(e))
-				DrawLine(e.head()->pos, ne.head()->pos, color);
-
-				e = ne;
-				ne = ne.next();
-			} while (e != f);
-		}*/
-
-		/*for (const auto& edge : hm.edges()) {
-			hedge_iter he = edge;
-			DrawLine(he.head()->pos, he.tail()->pos, color);
-		}*/
-
-for (hedge_iter half_edge : hm.edges())
-DrawLine(half_edge.head()->pos, half_edge.tail()->pos, color);
+		for (hedge_iter half_edge : hm.edges())
+			DrawLine(half_edge.head()->pos, half_edge.tail()->pos, color);
 
 	}
 
@@ -248,13 +229,20 @@ DrawLine(half_edge.head()->pos, half_edge.tail()->pos, color);
 			//he_mesh.flip_edge(hedge.index());
 			//he_mesh.refine_edge(hedge);
 
-			V v = *hedge.head();
-			v.pos += olc::vf2d(-10.0f, -17.0f);
+			//V v = *hedge.head();
+			//v.pos += olc::vf2d(-10.0f, -17.0f);
 			//he_mesh.split_vert_to_edge(hedge, hedge.next().twin(), v);
-			he_mesh.split_vert_to_faces(hedge, hedge.next().twin(), v);
+			//he_mesh.split_vert_to_faces(hedge, hedge.next().twin(), v);
 			
+			//he_mesh.refine_edge(hedge);
+			//he_mesh.split_edge(hedge, 0.5f);
+			//he_mesh.clip_corner(hedge);
 
-		//	hedge = temp;
+			auto temp = hedge.prev().twin();
+			he_mesh.collapse_edge(hedge);
+
+
+			hedge = temp;
 			he_mesh.check_validity();
 		}
 
