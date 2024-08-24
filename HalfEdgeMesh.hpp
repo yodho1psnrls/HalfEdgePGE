@@ -162,6 +162,8 @@ protected:
 	void invalidate_vert(const int& vert_id);
 	void invalidate_edge(const int& hedge_id);
 
+	V get_face_center(const int& hedge_id) const;
+
 	friend class vert_iter;
 	friend class hedge_iter;
 	friend class edge_iter;
@@ -991,8 +993,9 @@ inline void HEMesh<V>::check_validity() const {
 
 		if (is_removed_hedge(e))
 			std::cout << "Tail vert " << vi << " points to removed hedge " << e << "\n";
-		//else if (id_tail(e) != vi)
-		//	std::cout << "Tail vert " << vi << " points to hedge " << e << ", but its tail is " << id_tail(e) << "\n";
+		else if (id_tail(e) != vi)
+			std::cout << "Tail vert " << vi << " points to hedge " << e << ", but its tail is " << id_tail(e) << "\n";
+
 	
 		e = id_twin(e);
 		int beg = e;
@@ -1678,6 +1681,22 @@ inline void HEMesh<V>::invalidate_edge(const int& hedge_id) {
 	_hedges[he] = HalfEdge();
 	_hedges[he + 1] = HalfEdge();
 	_garbage_edges.insert(he);
+}
+
+template<typename V>
+inline V HEMesh<V>::get_face_center(const int& hedge_id) const {
+	int e = hedge_id;
+	int n = 0;
+	V center;
+
+	do {
+		center += _vertices[id_head(e)];
+		++n;
+
+		e = id_next(e);
+	} while (e != hedge_id);
+
+	return center / float(n);
 }
 
 
@@ -2555,17 +2574,15 @@ inline int HEMesh<V>::collapse_face(const int& hedge_id, const V& v) {
 
 
 	// That is the vertex that we collapse the face into
-	const int& vi = face_verts.front();
+	//const int& vi = face_verts.front();
+	int vi = face_verts.front();
 	_vertices[vi] = v;
 	//_vert_to_hedge[vi] = id_next(id_twin(id_next(c)));
-
 	_vert_to_hedge[vi] = HE_ISOLATED_INDEX; // half-edge which edge is not on the face
 
 	// Remove face edges
 	for (int& he : face_hedges) {
-		int vii = id_head(he);
 		int temp = id_prev(id_twin(he));
-
 
 		int oe = id_twin(temp);
 		if (oe != id_next(he)) // then it is an edge that is not on the face
@@ -2581,7 +2598,6 @@ inline int HEMesh<V>::collapse_face(const int& hedge_id, const V& v) {
 		_borders.erase(f);
 	}
 
-
 	// Make all the edges that were adjacent to the face to point to the collapse vertex
 	for (int i = 1, n = face_hedges.size(); i < n; ++i) {
 		const int& he = face_hedges[i];
@@ -2590,7 +2606,6 @@ inline int HEMesh<V>::collapse_face(const int& hedge_id, const V& v) {
 
 		if (!is_removed_hedge(he))
 			set_vert_id(he, vi);
-
 	}
 
 
@@ -2619,18 +2634,64 @@ template<typename V>
 inline int HEMesh<V>::collapse_face(const int& hedge_id) {
 	check_hedge_id(hedge_id);
 
-	int e = hedge_id;
-	int n = 0;
-	V center;
+	V center = get_face_center(hedge_id);
+	return collapse_face(hedge_id, center);
+}
 
+
+template<typename V>
+inline int HEMesh<V>::bevel_vert(const int& vert_id, const float h) {
+	check_vert_id(vert_id);
+	V center = _vertices[vert_id];
+
+	// Create the new edges that connect the old face and the new inner face
+	int beg = id_twin(id_hedge(vert_id));
+	int e = beg;
+	std::vector<int> adj_hedges; // adjacent half-edges that point to the vertex
 	do {
-		center += _vertices[id_head(e)];
-		++n;
+		adj_hedges.push_back(e);
+		e = id_twin(id_next(e));
+	} while (e != beg);
 
-		e = id_next(e);
-	} while (e != hedge_id);
 
-	return collapse_face(hedge_id, center / float(n));
+	bool bFace = false;
+
+	for (const int& he : adj_hedges) {
+		_hedges[he].next_id = id_twin(he);
+
+		const int& f = id_begin(he);
+		auto fit = _faces.find(f);
+		if (fit != _faces.end()) {
+			_faces.erase(fit);
+			bFace = true;
+		}
+		else
+			_borders.erase(f);
+	}
+
+	const int& f = adj_hedges.front();
+	if (bFace) _faces.insert(f);
+	else _borders.insert(f);
+	set_begin_id(f);
+	
+
+	for (int i = 1, n = adj_hedges.size(); i < n; ++i) {
+		const int& he = adj_hedges[i]; // adjacent half-edge that points to the center vertex
+		int t = id_twin(he);
+		const V& v = _vertices[id_head(t)];	// an adjacent vertex to the center vertex
+
+		int nv = add_vert(h * center + (1.0f - h) * v);
+		_hedges[he].head_id = nv;
+		_vert_to_hedge[nv] = t;
+	}
+
+	const V& v = _vertices[id_tail(adj_hedges.front())];
+	_vertices[vert_id] = h * center + (1.0f - h) * v;
+	
+
+	std::reverse(adj_hedges.begin(), adj_hedges.end());
+	return add_face_at(adj_hedges);
+	//return f;
 }
 
 
@@ -2639,16 +2700,8 @@ inline int HEMesh<V>::bevel_face(const int& hedge_id, const float h) {
 	check_hedge_id(hedge_id);
 
 	// Calculate mid-point/center
+	V center = get_face_center(hedge_id);
 	int e = hedge_id;
-	int n = 0;
-	V center;
-	do {
-		center += _vertices[id_head(e)];
-		++n;
-
-		e = id_next(e);
-	} while (e != hedge_id);
-	center /= float(n);
 
 	// Create the new edges that connect the old face and the new inner face
 	std::vector<int> new_hedges;
@@ -2664,6 +2717,7 @@ inline int HEMesh<V>::bevel_face(const int& hedge_id, const float h) {
 	
 	return add_face_at(new_hedges, false);
 }
+
 
 
 
