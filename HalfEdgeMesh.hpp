@@ -355,7 +355,7 @@ public:
 	int collapse_face(const int& hedge_id, const V& v);
 	int collapse_face(const int& hedge_id);	// the resulting vertex is the midpoint/center of the face
 
-	// Bevel operations
+	// Bevel operations, they return the half-edge index at the begining of the new face 
 	int bevel_vert(const int& vert_id, const float h = 0.5f);
 	int bevel_edge(const int& hedge_id, const float h = 0.5f);
 	int bevel_face(const int& hedge_id, const float h = 0.5f);
@@ -2013,7 +2013,10 @@ inline int HEMesh<V>::add_edge(const int& tail_id, const int& head_id, const boo
 	int ne = new_edge(tail_id, head_id);  // new half-edge
 	int net = ne + 1;			// new half edge twin
 
-	_borders.insert(ne);
+	//if (bMakeFace)
+	//	_faces.insert(ne);
+	//else
+		_borders.insert(ne);
 
 	bool isValidOper = true;
 
@@ -2419,12 +2422,14 @@ inline int HEMesh<V>::split_vert_to_edge(const int& hedgeA, const int& hedgeB, c
 	_vert_to_hedge[id_head(hedgeA)] = ne;
 
 	_hedges[ne] = _hedges[hedgeA];
-	_hedges[ne].head_id = vi;
+//	_hedges[ne].head_id = vi;
 	_hedges[hedgeA].next_id = ne;
 
 	_hedges[net] = _hedges[hedgeB];
 	_hedges[hedgeB].head_id = vi;
 	_hedges[hedgeB].next_id = net;
+
+	set_vert_id(ne, vi);	// !!!
 
 	return ne;
 }
@@ -2642,6 +2647,10 @@ inline int HEMesh<V>::collapse_face(const int& hedge_id) {
 template<typename V>
 inline int HEMesh<V>::bevel_vert(const int& vert_id, const float h) {
 	check_vert_id(vert_id);
+
+	if (is_isolated_vert(vert_id))
+		throw std::invalid_argument("Cannot bevel an isolated vertex");
+
 	V center = _vertices[vert_id];
 
 	// Create the new edges that connect the old face and the new inner face
@@ -2696,6 +2705,57 @@ inline int HEMesh<V>::bevel_vert(const int& vert_id, const float h) {
 
 
 template<typename V>
+inline int HEMesh<V>::bevel_edge(const int& hedge_id, const float h) {
+	check_hedge_id(hedge_id);
+
+	if (is_isolated_edge(hedge_id))
+		throw std::invalid_argument("Cannot bevel an isolated edge");
+	
+	int t = id_twin(hedge_id);
+	int e;
+	std::vector<int> front_hedges;
+	std::vector<int> back_hedges;
+
+	for (int e = id_next(hedge_id); e != t; e = id_next(id_twin(e)))
+		front_hedges.push_back(e);
+	for (int e = id_next(t); e != hedge_id; e = id_next(id_twin(e)))
+		back_hedges.push_back(e);
+
+	split_face_at(hedge_id, id_prev(hedge_id));
+	_vertices.reserve(_vertices.size() + front_hedges.size() + back_hedges.size());
+
+	int ne = hedge_id;
+	t = id_next(hedge_id);
+	
+	for (auto it = front_hedges.begin(); it != front_hedges.end(); ++it) {
+		const int& he = *it;
+		V cv = _vertices[id_head(ne)];
+		const V& ov = _vertices[id_head(he)];
+
+		_vertices[id_head(ne)] = h * ov + (1.0f - h) * cv;
+
+		if (std::next(it) != front_hedges.end())
+			split_vert_to_edge(id_twin(he), ne, cv);
+	}
+	
+	ne = t;
+
+	for (auto it = back_hedges.begin(); it != back_hedges.end(); ++it) {
+		const int& he = *it;
+		V cv = _vertices[id_head(ne)];
+		const V& ov = _vertices[id_head(he)];
+
+		_vertices[id_head(ne)] = h * ov + (1.0f - h) * cv;
+
+		if (std::next(it) != back_hedges.end())
+			split_vert_to_edge(id_twin(he), ne, cv);
+	}
+
+	return id_begin(hedge_id);
+}
+
+
+template<typename V>
 inline int HEMesh<V>::bevel_face(const int& hedge_id, const float h) {
 	check_hedge_id(hedge_id);
 
@@ -2713,7 +2773,6 @@ inline int HEMesh<V>::bevel_face(const int& hedge_id, const float h) {
 
 		e = ne;
 	} while (e != hedge_id);
-
 	
 	return add_face_at(new_hedges, false);
 }

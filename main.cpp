@@ -5,7 +5,7 @@
 #include <iostream>
 
 const float PINDIST = 8.0f;	// the range that the mouse will select a vertex
-const int INIT_HEDGE_ID = 15;
+const int INIT_HEDGE_ID = 15;	// 15
 
 template <typename V>
 class Example : public olc::PixelGameEngine {
@@ -249,8 +249,8 @@ public:
 			//hedge = he_mesh.begin_hedges();
 
 			//hedge = he_mesh.bevel_face(hedge);
-			hedge = he_mesh.bevel_vert(hedge.head());
-
+			//hedge = he_mesh.bevel_vert(hedge.head());
+			hedge = he_mesh.bevel_edge(hedge);
 
 
 		//	hedge = temp;
@@ -389,6 +389,36 @@ public:
 
 	}
 
+	HEMesh<V> test_mesh4() {
+		using vf2d = olc::vf2d;
+		HEMesh<V> hm;
+
+		hm.add_vert(vf2d(-0.5f, -0.75f));
+		hm.add_vert(vf2d(-0.5f, 0.75f));
+		hm.add_vert(vf2d(0.5f, 0.75f));
+		hm.add_vert(vf2d(0.5f, -0.75f));
+
+		hm.add_vert(vf2d(0.0f, -0.5f));
+		hm.add_vert(vf2d(0.0f, 0.5f));
+
+		//hm.add_face({ 0, 1, 2, 3 });
+
+		hm.add_edge(4, 5, true);
+		hm.add_edge(4, 3);
+		hm.add_edge(4, 0);
+		hm.add_edge(5, 1);
+		hm.add_edge(5, 2);
+
+		hm.add_face({ 0,1,2,3 });
+
+		for (V& v : hm.verts()) {
+			v.pos = to_screen(v.pos);
+			v.uv += vf2d(0.5f, 0.5f);
+		}
+
+		return hm;
+	}
+
 
 public:
 	bool OnUserCreate() override {
@@ -398,7 +428,7 @@ public:
 		mesh = generate_plane<V>(3, 0.9f);
 		he_mesh = mesh;
 
-		//he_mesh = test_mesh2();
+		//he_mesh = test_mesh4();
 		//mesh = he_mesh;
 
 		// test_mesh3();
