@@ -289,7 +289,11 @@ public:
 	//	void swap_next_same_loop(const int& hedge_id1, const int& hedge_id2);
 	//	void swap_next_diff_loop(const int& hedge_id1, const int& hedge_id2);
 
-	int split_face_at(int back_hedge_id, int front_hedge_id);	// splits the face or border loop adding a new edge at the head vertices of the given half-edges, it returns the id of the newly created face loop, if you want the index of the new half-edge, it is id_next(hedge_id1)
+	// splits the face or border loop adding a new edge at the head vertices
+	//  of the given half-edges, it returns the id of the newly created face loop
+	//  , if you want the index of the new half-edge, it is id_next(back_hedge_id)
+	//  and its twin is id_next(front_hedge_id)
+	int split_face_at(int back_hedge_id, int front_hedge_id);	
 
 	//void make_isolated(const int& vert_id);	// removes all adjacent edges of the given vertex
 	void remove_edges(const int& vert_id);	// removes all adjacent edges of the given vertex
@@ -360,6 +364,10 @@ public:
 	int bevel_edge(const int& hedge_id, const float h = 0.5f);
 	int bevel_face(const int& hedge_id, const float h = 0.5f);
 
+	// cuts an edge along its length and creates a new 2-sided degrade
+	//  border and connects it with other adjacent borders
+	// , it returns the id of the border that is created
+	int cut_edge(const int& hedge_id);
 
 
 	// With Iterators
@@ -447,7 +455,7 @@ public:
 
 		vert_iter() : id(HE_INVALID_INDEX), hm(nullptr) {}
 		
-		vert_iter& operator=(const int& id) { this->id = id; return *this; }
+	//	vert_iter& operator=(const int& id) { this->id = id; return *this; }
 
 		operator const int& () const { return id; }
 		//operator int() const { return id; }
@@ -496,7 +504,7 @@ public:
 
 		hedge_iter() : id(HE_INVALID_INDEX), hm(nullptr) {}
 
-		hedge_iter& operator=(const int& id) { this->id = id; return *this; }
+	//	hedge_iter& operator=(const int& id) { this->id = id; return *this; }
 
 		//operator edge_iter() const { return edge_iter(id / 2, hm); }
 	//	operator edge_iter() const { return edge_iter(id >> 1, hm); }
@@ -556,7 +564,7 @@ public:
 		//edge_iter() : id(HE_INVALID_INDEX), hm(nullptr) {}
 		edge_iter() : hedge_id(HE_INVALID_INDEX), hm(nullptr) {}
 
-		edge_iter& operator=(const int& id) { this->id = (id >> 1) << 1; return *this; }
+	//	edge_iter& operator=(const int& id) { this->id = (id >> 1) << 1; return *this; }
 
 		//operator const int& () const { return id; }
 		//operator int() const { return id; }
@@ -866,6 +874,7 @@ inline int HEMesh<V>::find_border_around_head(int& hedge_id) {
 		if (is_border_loop(b))
 			return b;
 
+		hedge_id = id_twin(id_next(hedge_id));
 	} while (hedge_id != begin_id);
 
 	return HE_INVALID_INDEX;
@@ -2772,8 +2781,8 @@ inline int HEMesh<V>::bevel_vert(const int& vert_id, const float h) {
 		// reverse the order that we set the next_ids, because the order at which
 		//  adjacent hedges are iterated around the vertex
 		//  is opposite to the orientation of the new face
-		int e = adj_hedges[(i + 1) % n];
-		int ne = adj_hedges[i];
+		const int& e = adj_hedges[(i + 1) % n];
+		const int& ne = adj_hedges[i];
 
 		_hedges[e].begin_id = f;
 		_hedges[e].next_id = ne;
@@ -2856,6 +2865,45 @@ inline int HEMesh<V>::bevel_face(const int& hedge_id, const float h) {
 }
 
 
+template<typename V>
+inline int HEMesh<V>::cut_edge(const int& hedge_id) {
+	check_hedge_id(hedge_id);
+
+	if (is_border_edge(hedge_id))
+		//throw std::invalid_argument("Cannot cut around a border (where it has already been cut)");
+		return HE_INVALID_INDEX;
+
+	split_face_at(hedge_id, id_prev(hedge_id));
+	int f = id_begin(hedge_id);
+	_faces.erase(f);
+	_borders.insert(f);
+
+	int hedge_ids[2] = { hedge_id, id_next(hedge_id) };
+
+	for (int i = 0; i < 2; ++i) {
+		const int& he = hedge_ids[i];
+
+		int bh = id_twin(id_next(he)); // border half-edge index  // one step ahead, so find_border_around_head doesnt always stop at he
+		int b = find_border_around_head(bh); // border begin half-edge index
+
+		// it will always be a valid index because he is a border half-edge
+		if (bh != he) { // && b != HE_INVALID_INDEX 
+			int vi = id_head(he);
+			_vert_to_hedge[vi] = id_twin(he);
+
+			// split the vertex when two borders are joined
+			int nvi = _vertices.size();
+			_vertices.push_back(_vertices[vi]);
+			_vert_to_hedge.push_back(id_twin(bh));
+
+			swap_next(bh, he); // join the borders
+			set_vert_id(bh, nvi);
+		}
+	}
+
+	//return id_begin(hedge_id);
+	return id_begin(hedge_ids[1]);	// better return the other border, if it happens that the other hedge is now separated from hedge_id
+}
 
 
 

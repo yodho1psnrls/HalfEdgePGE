@@ -258,17 +258,18 @@ public:
 
 			//auto temp = hedge.prev().twin().next();
 			//he_mesh.collapse_face(hedge);
-			//hedge = he_mesh.begin_hedges();
+			//he_mesh.begin_hedges();
 
 			//hedge = he_mesh.bevel_face(hedge);
-			hedge = he_mesh.bevel_vert(hedge.head());
-			//hedge = he_mesh.bevel_edge(hedge);
+			//he_mesh.bevel_vert(hedge.head());
+			//he_mesh.bevel_edge(hedge);
 
-			//auto temp = hedge = hedge.next().twin();
+			//auto temp = hedge.next().twin();
 			//V v = hedge.head()->pos + olc::vf2d(10.0f, 17.0f);
 			//he_mesh.split_vert_to_edge(hedge, hedge, v);
 			//he_mesh.split_vert_to_edge(hedge, hedge.next().twin(), v);
 			
+			he_mesh.cut_edge(hedge);
 
 		//	hedge = temp;
 			he_mesh.check_validity();
