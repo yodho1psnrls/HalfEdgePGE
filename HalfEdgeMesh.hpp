@@ -2644,7 +2644,7 @@ inline int HEMesh<V>::collapse_face(const int& hedge_id) {
 }
 
 
-template<typename V>
+/*template<typename V>
 inline int HEMesh<V>::bevel_vert(const int& vert_id, const float h) {
 	check_vert_id(vert_id);
 
@@ -2653,7 +2653,7 @@ inline int HEMesh<V>::bevel_vert(const int& vert_id, const float h) {
 
 	V center = _vertices[vert_id];
 
-	// Create the new edges that connect the old face and the new inner face
+	// Collect the adjacent outgoing half-edges (one per each adjacent edge)
 	int beg = id_twin(id_hedge(vert_id));
 	int e = beg;
 	std::vector<int> adj_hedges; // adjacent half-edges that point to the vertex
@@ -2662,9 +2662,9 @@ inline int HEMesh<V>::bevel_vert(const int& vert_id, const float h) {
 		e = id_twin(id_next(e));
 	} while (e != beg);
 
-
 	bool bFace = false;
 
+	// Make all adjacent faces to be one single face
 	for (const int& he : adj_hedges) {
 		_hedges[he].next_id = id_twin(he);
 
@@ -2683,7 +2683,7 @@ inline int HEMesh<V>::bevel_vert(const int& vert_id, const float h) {
 	else _borders.insert(f);
 	set_begin_id(f);
 	
-
+	// Make all edge (except the first) to point to a new vertex
 	for (int i = 1, n = adj_hedges.size(); i < n; ++i) {
 		const int& he = adj_hedges[i]; // adjacent half-edge that points to the center vertex
 		int t = id_twin(he);
@@ -2697,12 +2697,90 @@ inline int HEMesh<V>::bevel_vert(const int& vert_id, const float h) {
 	const V& v = _vertices[id_tail(adj_hedges.front())];
 	_vertices[vert_id] = h * center + (1.0f - h) * v;
 	
-
+	// The orientation of the face is opposite to the direction 
+	//  that the adjacent vertex edges are iterated
 	std::reverse(adj_hedges.begin(), adj_hedges.end());
-	return add_face_at(adj_hedges);
-	//return f;
-}
 
+	return add_face_at(adj_hedges);
+}*/
+
+
+// @todo: Think about how vertices with only 1 or 2 adjacent edges, should be handled
+// This version preserves the faces and borders
+// The older version would have made all adjacent faces/borders into
+// either a face or a border, but this one makes such that if an
+// adjacent face was face/border it stays as a face/border after the beveling
+template<typename V>
+inline int HEMesh<V>::bevel_vert(const int& vert_id, const float h) {
+	check_vert_id(vert_id);
+
+	if (is_isolated_vert(vert_id))
+		throw std::invalid_argument("Cannot bevel an isolated vertex");
+
+	// Collect the adjacent outgoing half-edges
+	//  (the half-edges, which tail vertex is vert_id)
+	int beg = id_hedge(vert_id);
+	int e = beg;
+	std::vector<int> adj_hedges;
+	do {
+		adj_hedges.push_back(e);
+		e = id_next(id_twin(e));
+	} while (e != beg);
+	int n = adj_hedges.size();
+
+	// Collect the new vertices and the one that will be reused
+	std::vector<int> adj_verts;
+	for (int i = 0; i < n - 1; ++i)
+		adj_verts.push_back(add_vert(V()));
+	adj_verts.push_back(vert_id);
+
+	// Create the new edges, update their connectivity with adj_hedges
+	//  , update vertices blended position and update the adj_hedges
+	//  to store the new hedges that are for the new face
+	for (int i = 0; i < n; ++i) {
+		int e = adj_hedges[i]; // points out of vert_id
+		int t = id_twin(e); // points towards vert_id
+
+		// Update the new blended vertices
+		const V& ov = _vertices[id_head(e)];
+		const int& nvi = adj_verts[(i + 1) % n];
+		const int& vi = adj_verts[i];
+		_vertices[vi] = h * ov + (1.0f - h) * _vertices[vert_id];
+		_vert_to_hedge[vi] = e;
+
+		// Create a new edge that will be on the new face
+		int ne = new_edge();	// new half-edge
+		int net = ne + 1;		// new twin half-edge
+		_hedges[ne] = HalfEdge(nvi, id_next(t), id_begin(t)); // the one that is out of the new face
+		_hedges[net] = HalfEdge(vi, HE_INVALID_INDEX, HE_INVALID_INDEX); // the one that is in the new face
+
+		// Update the adjacent hedge to now point to the new vertex and new half-edge
+		_hedges[t].head_id = vi;
+		_hedges[t].next_id = ne;
+
+		adj_hedges[i] = net;	// reuse the adj_edges vector to store the new hedges
+
+	}
+
+	const int& f = adj_hedges.front();
+	_faces.insert(f);
+
+	// Now that adj_edges stores the new hedges, we can update them, so they all connect
+	//  and form the loop of the new face
+	for (int i = 0; i < n; ++i) {
+
+		// reverse the order that we set the next_ids, because the order at which
+		//  adjacent hedges are iterated around the vertex
+		//  is opposite to the orientation of the new face
+		int e = adj_hedges[(i + 1) % n];
+		int ne = adj_hedges[i];
+
+		_hedges[e].begin_id = f;
+		_hedges[e].next_id = ne;
+	}
+
+	return f;
+}
 
 template<typename V>
 inline int HEMesh<V>::bevel_edge(const int& hedge_id, const float h) {

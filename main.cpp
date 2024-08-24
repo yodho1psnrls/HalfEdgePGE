@@ -176,6 +176,18 @@ public:
 			next_history.pop_back();
 		}
 
+		// Resets to initial state
+		if (GetKey(olc::C).bReleased) {
+			prev_history.push_back({ he_mesh, hedge.index() });
+
+			auto pairr = prev_history.front();
+			he_mesh = pairr.first;
+			hedge = he_mesh.hedge(pairr.second);
+
+			next_history.insert(next_history.end(), prev_history.rbegin(), --prev_history.rend());
+			prev_history.clear();
+		}
+
 
 		if (GetKey(olc::S).bReleased) {
 			he_mesh.remove_isolated_verts();
@@ -249,9 +261,14 @@ public:
 			//hedge = he_mesh.begin_hedges();
 
 			//hedge = he_mesh.bevel_face(hedge);
-			//hedge = he_mesh.bevel_vert(hedge.head());
-			hedge = he_mesh.bevel_edge(hedge);
+			hedge = he_mesh.bevel_vert(hedge.head());
+			//hedge = he_mesh.bevel_edge(hedge);
 
+			//auto temp = hedge = hedge.next().twin();
+			//V v = hedge.head()->pos + olc::vf2d(10.0f, 17.0f);
+			//he_mesh.split_vert_to_edge(hedge, hedge, v);
+			//he_mesh.split_vert_to_edge(hedge, hedge.next().twin(), v);
+			
 
 		//	hedge = temp;
 			he_mesh.check_validity();
